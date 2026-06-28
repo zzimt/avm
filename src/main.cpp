@@ -157,7 +157,6 @@ namespace avm {
         MulFloat,
         DivFloat,
         UnMinFloat,
-        SqrtFloat,
         EqFloat,
         NeqFloat,
         LtFloat,
@@ -186,7 +185,43 @@ namespace avm {
         Goto,
         GotoIm,
 
+        CallIntrin,
+
         Exit,
+    };
+
+    enum class Intrin : uint8_t {
+        MinInt,
+        MaxInt,
+        SignInt,
+        AbsInt,
+        
+        MinUint,
+        MaxUint,
+
+        FloorFloat,
+        CeilFloat,
+        RoundFloat,
+        TruncFloat,
+        IsNanFloat,
+        IsInfFloat,
+        IsFinFloat,
+        SignBitFloat,
+        FmaFloat,
+        MinFloat,
+        MaxFloat,
+        SqrtFloat,
+        SinFloat,
+        CosFloat,
+        TanFloat,
+        ExpFloat,
+        Exp2Float,
+        LogFloat,
+        Log2Float,
+        Log10Float,
+        PowFloat,
+        SignFloat,
+        AbsFloat,
     };
 
     struct Inst {
@@ -1002,10 +1037,6 @@ namespace avm {
                 double a = m_stack.pop().floating();
                 m_stack.push(Value::floating(-a));
             } break;
-            case Op::SqrtFloat: {
-                double a = m_stack.pop().floating();
-                m_stack.push(Value::floating(std::sqrt(a)));
-            } break;
             case Op::EqFloat: {
                 double b = m_stack.pop().floating();
                 double a = m_stack.pop().floating();
@@ -1130,12 +1161,152 @@ namespace avm {
                 return;
             } break;
 
+            case Op::CallIntrin: {
+                std::uint8_t intrin_num = inst.a.uinteger();
+                Intrin intrin = static_cast<Intrin>(intrin_num);
+                call_intrin(intrin);
+            } break;
+
             case Op::Exit: {
                 m_exit_requested = true;
                 return;
             } break;
             }
             m_program_cnt++;
+        }
+
+        void call_intrin(Intrin intrin) {
+            switch (intrin) {
+            case Intrin::MinInt: {
+                std::int64_t b = m_stack.pop().integer();
+                std::int64_t a = m_stack.pop().integer();
+                m_stack.push(Value::integer(std::min(a, b)));
+            } break;
+            case Intrin::MaxInt: {
+                std::int64_t b = m_stack.pop().integer();
+                std::int64_t a = m_stack.pop().integer();
+                m_stack.push(Value::integer(std::max(a, b)));
+            } break;
+            case Intrin::SignInt: {
+                std::int64_t a = m_stack.pop().integer();
+                std::int64_t sign = (a > 0) ? 1 : ((a < 0) ? -1 : 0);
+                m_stack.push(Value::integer(sign));
+            } break;
+            case Intrin::AbsInt: {
+                std::int64_t a = m_stack.pop().integer();
+                m_stack.push(Value::integer(std::abs(a)));
+            } break;
+
+            case Intrin::MinUint: {
+                std::uint64_t b = m_stack.pop().uinteger();
+                std::uint64_t a = m_stack.pop().uinteger();
+                m_stack.push(Value::uinteger(std::min(a, b)));
+            } break;
+            case Intrin::MaxUint: {
+                std::uint64_t b = m_stack.pop().uinteger();
+                std::uint64_t a = m_stack.pop().uinteger();
+                m_stack.push(Value::uinteger(std::max(a, b)));
+            } break;
+
+            case Intrin::FloorFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::floor(a)));
+            } break;
+            case Intrin::CeilFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::ceil(a)));
+            } break;
+            case Intrin::RoundFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::round(a)));
+            } break;
+            case Intrin::TruncFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::trunc(a)));
+            } break;
+            case Intrin::IsNanFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::boolean(std::isnan(a)));
+            } break;
+            case Intrin::IsInfFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::boolean(std::isinf(a)));
+            } break;
+            case Intrin::IsFinFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::boolean(std::isfinite(a)));
+            } break;
+            case Intrin::SignBitFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::boolean(std::signbit(a)));
+            } break;
+            case Intrin::FmaFloat: {
+                double c = m_stack.pop().floating();
+                double b = m_stack.pop().floating();
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::fma(a, b, c)));
+            } break;
+            case Intrin::MinFloat: {
+                double b = m_stack.pop().floating();
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::min(a, b)));
+            } break;
+            case Intrin::MaxFloat: {
+                double b = m_stack.pop().floating();
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::max(a, b)));
+            } break;
+            case Intrin::SqrtFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::sqrt(a)));
+            } break;
+            case Intrin::SinFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::sin(a)));
+            } break;
+            case Intrin::CosFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::cos(a)));
+            } break;
+            case Intrin::TanFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::tan(a)));
+            } break;
+            case Intrin::ExpFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::exp(a)));
+            } break;
+            case Intrin::Exp2Float: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::exp2(a)));
+            } break;
+            case Intrin::LogFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::log(a)));
+            } break;
+            case Intrin::Log2Float: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::log2(a)));
+            } break;
+            case Intrin::Log10Float: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::log10(a)));
+            } break;
+            case Intrin::PowFloat: {
+                double b = m_stack.pop().floating();
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::pow(a, b)));
+            } break;
+            case Intrin::SignFloat: {
+                double a = m_stack.pop().floating();
+                std::int64_t sign = (a > 0.0) ? 1 : ((a < 0.0) ? -1 : 0);
+                m_stack.push(Value::integer(sign));
+            } break;
+            case Intrin::AbsFloat: {
+                double a = m_stack.pop().floating();
+                m_stack.push(Value::floating(std::abs(a)));
+            } break;
+            }
         }
 
         void run() {
