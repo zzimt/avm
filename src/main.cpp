@@ -18,6 +18,8 @@ namespace avm {
         Ref,
     };
 
+    struct MemHeader;
+
     class Value {
     public:
         union Data {
@@ -25,7 +27,7 @@ namespace avm {
             std::uint64_t uinteger;
             double floating;
             std::uint8_t boolean;
-            std::uintptr_t reference;
+            MemHeader* reference;
         };
 
         static inline Value integer(std::int64_t value) {
@@ -60,11 +62,11 @@ namespace avm {
             return m_data.boolean;
         }
 
-        static inline Value reference(std::uintptr_t value) {
+        static inline Value reference(MemHeader* value) {
             return Value(Type::Ref, { .reference = value });
         }
 
-        inline std::uintptr_t reference() const {
+        inline MemHeader* reference() const {
             return m_data.reference;
         }
 
@@ -93,8 +95,8 @@ namespace avm {
         Push,
 
         MakeMem,
-        MakeMemSize,
-        MakeMemSizeIm,
+        MakeMemCount,
+        MakeMemCountIm,
         StoreMem,
         StoreMemIm,
         StoreMemIdx,
@@ -538,27 +540,83 @@ namespace avm {
     #define AVM_ALIGN_UP(n, alignment) \
         (((n) + (alignment) - 1) & ~((alignment) - 1))
 
+    struct MemHeader {
+        std::size_t count;
+        bool mark;
+
+        static inline std::size_t allocated_size_in_bytes(
+            std::size_t elem_count
+        );
+
+        static inline MemHeader* allocate(std::size_t count, bool mark);
+
+        static inline void deallocate(MemHeader* header);
+
+        inline MemHeader(std::size_t count, bool mark) :
+            count(count),
+            mark(mark) { }
+
+        inline Value* data();
+
+        inline const Value* values() const;
+
+        inline std::size_t allocated_size_in_bytes() const;
+    };
+
+    static constexpr std::size_t MEM_HEADER_ALIGN =
+        std::max(alignof(MemHeader), alignof(Value));
+
+    static constexpr std::size_t MEM_HEADER_SIZE =
+        AVM_ALIGN_UP(sizeof(MemHeader), MEM_HEADER_ALIGN);
+
+    inline std::size_t MemHeader::allocated_size_in_bytes(
+        std::size_t elem_count
+    ) {
+        return MEM_HEADER_SIZE + sizeof(Value) * elem_count;
+    }
+
+    inline MemHeader* MemHeader::allocate(std::size_t count, bool mark) {
+        std::size_t total_size = allocated_size_in_bytes(count);
+        
+        void* block_ptr = ::operator new(
+            total_size, 
+            std::align_val_t(MEM_HEADER_ALIGN)
+        );
+
+        auto* header = new (block_ptr) MemHeader(count, mark);
+        new (
+            reinterpret_cast<std::byte*>(block_ptr) + MEM_HEADER_SIZE
+        ) Value[count];
+        return header;
+    }
+
+    inline void MemHeader::deallocate(MemHeader* header) {
+        void* block_ptr = header;
+        ::operator delete(block_ptr, std::align_val_t(MEM_HEADER_ALIGN));
+    }
+
+    inline Value* MemHeader::data() {
+        return reinterpret_cast<Value*>(
+            reinterpret_cast<std::byte*>(this) + MEM_HEADER_SIZE
+        );
+    }
+
+    inline const Value* MemHeader::values() const {
+        return reinterpret_cast<const Value*>(
+            reinterpret_cast<const std::byte*>(this) + MEM_HEADER_SIZE
+        );
+    }
+
+    inline std::size_t MemHeader::allocated_size_in_bytes() const {
+        return MEM_HEADER_SIZE + sizeof(Value) * count;
+    }
+
     class Mem {
         static_assert(std::is_trivially_destructible_v<Value>, 
             "`Value` type must be trivially destructible");
 
-    private:
-        struct Header {
-            std::size_t size;
-            bool mark;
-
-            Header(std::size_t size, bool mark) :
-                size(size),
-                mark(mark) { }
-        };
-
-        static inline constexpr std::size_t block_align = 
-            std::max(alignof(Header), alignof(Value));
-
-        static inline constexpr std::size_t header_size = 
-            AVM_ALIGN_UP(sizeof(Header), block_align);
-
-        static inline constexpr std::size_t data_offset = header_size;
+        static_assert(std::is_trivially_destructible_v<MemHeader>,
+            "`MemHeader` type must be trivially destructible");
 
     public:
         Mem(const Mem&) = delete;
@@ -584,8 +642,8 @@ namespace avm {
             }
         }
 
-        inline std::uintptr_t make(std::uint64_t size) {
-            m_alloc_since_gc += data_offset + sizeof(Value) * size;
+        inline MemHeader* make(std::uint64_t count) {
+            m_alloc_since_gc += MemHeader::allocated_size_in_bytes(count);
 
             if (m_alloc_since_gc >= m_gc_threshold) {
                 run_gc();
@@ -597,44 +655,25 @@ namespace avm {
                 );
             }
 
-            return alloc_block(size);
+            return alloc_block(count);
         }
 
-        inline Value& get(std::uintptr_t addr, std::uint64_t idx) {
-            Header* header = reinterpret_cast<Header*>(addr);
-            Value* data = reinterpret_cast<Value*>(
-                reinterpret_cast<std::byte*>(header) + data_offset
-            );
-            return data[idx];
+        inline Value& get(MemHeader* header, std::uint64_t idx) {
+            return header->data()[idx];
         }
 
     private:
-        inline std::uintptr_t alloc_block(std::uint64_t size) {
-            std::size_t total_size = data_offset + sizeof(Value) * size;
-
-            void* block_ptr = ::operator new(
-                total_size, 
-                std::align_val_t(block_align)
-            );
-
-            auto* header = new (block_ptr) Header(size, false);
-            auto* data = new (
-                reinterpret_cast<std::byte*>(block_ptr) + data_offset
-            ) Value[size];
+        inline MemHeader* alloc_block(std::uint64_t count) {
+            auto* header = MemHeader::allocate(count, false);
 
             m_tracked_blocks.push_back(header);
-            m_total_allocated += total_size;
+            m_total_allocated += header->allocated_size_in_bytes();
 
-            return reinterpret_cast<std::uintptr_t>(block_ptr);
+            return header;
         }
 
-        inline void free_block(Header* header) {
-            std::size_t total_size = data_offset + sizeof(Value) * header->size;
-
-            m_total_allocated -= total_size;
-
-            void* block_ptr = header;
-            ::operator delete(block_ptr, std::align_val_t(block_align));
+        inline void free_block(MemHeader* header) {
+            MemHeader::deallocate(header);
         }
 
         inline void run_gc() {
@@ -660,18 +699,15 @@ namespace avm {
             case Type::Bool:
                 break;
             case Type::Ref: {
-                std::uintptr_t addr = value.reference();
-                Header* header = reinterpret_cast<Header*>(addr);
+                MemHeader* header = value.reference();
                 if (header->mark) {
                     break;
                 }
                 header->mark = true;
-                Value* data = reinterpret_cast<Value*>(
-                    reinterpret_cast<std::byte*>(header) + data_offset
-                );
+                Value* data = header->data();
                 for (
                     std::size_t value_id = 0; 
-                    value_id < header->size; 
+                    value_id < header->count; 
                     value_id++
                 ) {
                     Value& value = data[value_id];
@@ -690,7 +726,7 @@ namespace avm {
                 if (header->mark) {
                     header->mark = false;
 
-                    m_live_bytes += data_offset + sizeof(Value) * header->size;
+                    m_live_bytes += header->allocated_size_in_bytes();
                     m_tracked_blocks[write++] = header;
                 } else {
                     free_block(header);
@@ -699,7 +735,7 @@ namespace avm {
             m_tracked_blocks.resize(write);
         }
 
-        std::vector<Header*> m_tracked_blocks;
+        std::vector<MemHeader*> m_tracked_blocks;
         std::size_t m_total_allocated;
         std::size_t m_live_bytes;
         std::size_t m_alloc_since_gc;
@@ -741,66 +777,66 @@ namespace avm {
             } break;
 
             case Op::MakeMem: {
-                std::uintptr_t addr = m_mem.make(1);
-                m_stack.push(Value::reference(addr));
+                MemHeader* header = m_mem.make(1);
+                m_stack.push(Value::reference(header));
             } break;
-            case Op::MakeMemSize: {
-                std::uint64_t size = m_stack.pop().uinteger();
-                std::uintptr_t addr = m_mem.make(size);
-                m_stack.push(Value::reference(addr));
+            case Op::MakeMemCount: {
+                std::uint64_t count = m_stack.pop().uinteger();
+                MemHeader* header = m_mem.make(count);
+                m_stack.push(Value::reference(header));
             } break;
-            case Op::MakeMemSizeIm: {
-                std::uint64_t size = inst.a.uinteger();
-                std::uintptr_t addr = m_mem.make(size);
-                m_stack.push(Value::reference(addr));
+            case Op::MakeMemCountIm: {
+                std::uint64_t count = inst.a.uinteger();
+                MemHeader* header = m_mem.make(count);
+                m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMem: {
                 Value value = m_stack.pop();
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_mem.get(addr, 0) = value;
+                MemHeader* header = m_stack.pop().reference();
+                m_mem.get(header, 0) = value;
             } break;
             case Op::StoreMemIm: {
                 Value value = inst.a;
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_mem.get(addr, 0) = value;
+                MemHeader* header = m_stack.pop().reference();
+                m_mem.get(header, 0) = value;
             } break;
             case Op::StoreMemIdx: {
                 Value value = m_stack.pop();
                 std::uint64_t idx = m_stack.pop().uinteger();
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_mem.get(addr, idx) = value;
+                MemHeader* header = m_stack.pop().reference();
+                m_mem.get(header, idx) = value;
             } break;
             case Op::StoreMemImIdx: {
                 Value value = inst.a;
                 std::uint64_t idx = m_stack.pop().uinteger();
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_mem.get(addr, idx) = value;
+                MemHeader* header = m_stack.pop().reference();
+                m_mem.get(header, idx) = value;
             } break;
             case Op::StoreMemIdxIm: {
                 Value value = m_stack.pop();
                 std::uint64_t idx = inst.a.uinteger();
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_mem.get(addr, idx) = value;
+                MemHeader* header = m_stack.pop().reference();
+                m_mem.get(header, idx) = value;
             } break;
             case Op::StoreMemImIdxIm: {
                 Value value = inst.b;
                 std::uint64_t idx = inst.a.uinteger();
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_mem.get(addr, idx) = value;
+                MemHeader* header = m_stack.pop().reference();
+                m_mem.get(header, idx) = value;
             } break;
             case Op::LoadMem: {
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_stack.push(m_mem.get(addr, 0));
+                MemHeader* header = m_stack.pop().reference();
+                m_stack.push(m_mem.get(header, 0));
             } break;
             case Op::LoadMemIdx: {
                 std::uint64_t idx = m_stack.pop().uinteger();
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_stack.push(m_mem.get(addr, idx));
+                MemHeader* header = m_stack.pop().reference();
+                m_stack.push(m_mem.get(header, idx));
             } break;
             case Op::LoadMemIdxIm: {
                 std::uint64_t idx = inst.a.uinteger();
-                std::uintptr_t addr = m_stack.pop().reference();
-                m_stack.push(m_mem.get(addr, idx));
+                MemHeader* header = m_stack.pop().reference();
+                m_stack.push(m_mem.get(header, idx));
             } break;
 
             case Op::Copy: {
@@ -827,8 +863,12 @@ namespace avm {
                 std::cout << (val ? "true" : "false") << std::endl;
             } break;
             case Op::PrintRef: {
-                std::uintptr_t val = m_stack.pop().reference();
-                std::cout << "0x" << std::hex << val << std::dec << std::endl;
+                MemHeader* val = m_stack.pop().reference();
+                std::cout << "0x" 
+                          << std::hex 
+                          << std::uintptr_t(val) 
+                          << std::dec 
+                          << std::endl;
             } break;
             case Op::PrintFloat: {
                 double val = m_stack.pop().floating();
@@ -1377,7 +1417,7 @@ int main() {
     
         Elem::label("main"),
 
-        Elem::inst({ Op::Push, Value::integer(10)}),
+        Elem::inst({ Op::Push, Value::integer(19)}),
         Elem::call_im("fib"),
         Elem::inst({ Op::PrintInt }),
 
@@ -1393,7 +1433,7 @@ int main() {
         Elem::inst({ Op::LoadMem }),
         Elem::inst({ Op::PrintInt }),
 
-        Elem::inst({ Op::MakeMemSizeIm, Value::uinteger(10) }),
+        Elem::inst({ Op::MakeMemCountIm, Value::uinteger(10) }),
         Elem::inst({ Op::StoreLocal, Value::uinteger(1) }),
         Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
         Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(0), 
