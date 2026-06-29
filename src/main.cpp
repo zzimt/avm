@@ -255,6 +255,7 @@ namespace avm {
             If,
             CallIm,
             GotoIm,
+            PushLabel,
             Inst,
         };
 
@@ -275,11 +276,16 @@ namespace avm {
             std::string_view label;
         };
 
+        struct PushLabel {
+            std::string_view label;
+        };
+
         union Data {
             Label label;
             If if_;
             CallIm call_im;
             GotoIm goto_im;
+            PushLabel push_label;
             Inst inst;
         };
 
@@ -341,6 +347,19 @@ namespace avm {
             return m_data.goto_im;
         }
 
+        static inline Elem push_label(std::string_view label) {
+            return Elem(
+                Kind::PushLabel,
+                {
+                    .push_label = { .label = label }
+                }
+            );
+        }
+
+        inline PushLabel push_label() {
+            return m_data.push_label;
+        }
+
         static inline Elem inst(const Inst& inst) {
             return Elem(Kind::Inst, { .inst = inst });
         }
@@ -385,6 +404,7 @@ namespace avm {
                 case Elem::Kind::If:
                 case Elem::Kind::CallIm:
                 case Elem::Kind::GotoIm:
+                case Elem::Kind::PushLabel:
                 case Elem::Kind::Inst:
                     inst_addr++;
                     break;
@@ -428,6 +448,16 @@ namespace avm {
                     res.push_back(
                         Inst(
                             Op::GotoIm,
+                            Value::uinteger(addr)
+                        )
+                    );
+                } break;
+                case Elem::Kind::PushLabel: {
+                    std::uint64_t addr =
+                        m_labels_to_addrs[elem.push_label().label];
+                    res.push_back(
+                        Inst(
+                            Op::Push,
                             Value::uinteger(addr)
                         )
                     );
