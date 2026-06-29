@@ -625,12 +625,15 @@ namespace avm {
 
         inline Mem(Stack<Value>& stack, LocalStack& local_stack) :
             m_tracked_blocks(),
+            m_gray(),
             m_total_allocated(0),
             m_live_bytes(0),
             m_alloc_since_gc(0),
             m_gc_threshold(1024 * 1024 * 4),
             m_stack(stack),
-            m_local_stack(local_stack) { }
+            m_local_stack(local_stack) { 
+            m_gray.reserve(256);
+        }
 
         Mem& operator=(const Mem&) = delete;
 
@@ -682,6 +685,18 @@ namespace avm {
         }
 
         inline void run_mark() {
+            m_gray.clear();
+
+            auto mark_value = [this](Value& value) {
+                if (value.type() == Type::Ref) {
+                    MemHeader* header = value.reference();
+                    if (!header->mark) {
+                        header->mark = true;
+                        m_gray.push_back(header);
+                    }
+                }
+            };
+
             for (auto& value : m_stack) {
                 mark_value(value);
             }
@@ -689,31 +704,16 @@ namespace avm {
             for (auto& value : m_local_stack) {
                 mark_value(value);
             }
-        }
 
-        inline void mark_value(Value& value) {
-            switch (value.type()) {
-            case Type::Int:
-            case Type::Uint:
-            case Type::Float:
-            case Type::Bool:
-                break;
-            case Type::Ref: {
-                MemHeader* header = value.reference();
-                if (header->mark) {
-                    break;
-                }
-                header->mark = true;
+            while (!m_gray.empty()) {
+                MemHeader* header = m_gray.back();
+                m_gray.pop_back();
+
                 Value* data = header->data();
-                for (
-                    std::size_t value_id = 0; 
-                    value_id < header->count; 
-                    value_id++
-                ) {
-                    Value& value = data[value_id];
+                for (std::size_t i = 0; i < header->count; i++) {
+                    Value& value = data[i];
                     mark_value(value);
                 }
-            } break;
             }
         }
 
@@ -736,6 +736,7 @@ namespace avm {
         }
 
         std::vector<MemHeader*> m_tracked_blocks;
+        std::vector<MemHeader*> m_gray;
         std::size_t m_total_allocated;
         std::size_t m_live_bytes;
         std::size_t m_alloc_since_gc;
