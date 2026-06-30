@@ -1,4 +1,5 @@
 #include <iostream>
+#include <optional>
 #include <vector>
 #include <cstdint>
 #include <cstddef>
@@ -183,6 +184,8 @@ namespace avm {
         If,
         Call,
         CallIm,
+        CallExtern,
+        CallExternIm,
         Ret,
         Goto,
         GotoIm,
@@ -391,6 +394,15 @@ namespace avm {
             collect_labels();
             return resolve_labels();
         }
+
+        std::optional<std::uint64_t> get_label_addr(std::string_view label) {
+            auto label_found = m_labels_to_addrs.find(label);
+            if (label_found != m_labels_to_addrs.end()) {
+                return label_found->second;
+            } else {
+                return std::nullopt;
+            }
+        }
         
     private:
         void collect_labels() {
@@ -500,6 +512,14 @@ namespace avm {
 
         inline T& operator[](std::size_t index) {
             return m_elements[m_elements.size() - 1 - index];
+        }
+
+        inline bool empty() const {
+            return m_elements.empty();
+        }
+
+        inline std::size_t size() const {
+            return m_elements.size();
         }
 
         auto begin() {
@@ -784,7 +804,8 @@ namespace avm {
             m_ret_stack(),
             m_local_stack(),
             m_mem(m_stack, m_local_stack),
-            m_exit_requested(false) { 
+            m_exit_requested(false),
+            m_registered_externs() { 
             m_stack.reserve(1024);
             m_ret_stack.reserve(1024);
             m_local_stack.reserve(1024);
@@ -1215,10 +1236,21 @@ namespace avm {
                 m_local_stack.push();
                 return;
             } break;
+            case Op::CallExtern: {
+                std::uint64_t slot = m_stack.pop().uinteger();
+                auto& reg_extern = m_registered_externs[slot];
+                reg_extern.func(*this, reg_extern.user_data);
+            } break;
+            case Op::CallExternIm: {
+                std::uint64_t slot = inst.a.uinteger();
+                auto& reg_extern = m_registered_externs[slot];
+                reg_extern.func(*this, reg_extern.user_data);
+            } break;
             case Op::Ret: {
                 std::uint64_t addr = m_ret_stack.pop();
                 m_program_cnt = addr;
                 m_local_stack.pop();
+                if (m_ret_stack.empty()) m_exit_requested = true;
                 return;
             } break;
             case Op::Goto: {
@@ -1380,15 +1412,52 @@ namespace avm {
             }
         }
 
-        void run() {
+        inline void stack_push(const Value& value) {
+            m_stack.push(value);
+        }
+
+        inline Value stack_pop() {
+            return m_stack.pop();
+        }
+
+        void call(std::uint64_t addr) {
+            m_exit_requested = false;
+            m_program_cnt = addr;
+            m_ret_stack.push(0);
+            m_local_stack.push();
             while (true) {
                 if (m_exit_requested) return;
-                if (m_program_cnt >= m_program.size()) return;
                 execute_inst(m_program[m_program_cnt]);
             }
         }
 
+        using ExternFunc = void (*)(Avm& avm, void* user_data);
+
+        void register_extern(
+            std::uint64_t slot, 
+            ExternFunc func, 
+            void* user_data
+        ) {
+            if (slot >= m_registered_externs.size()) {
+                m_registered_externs.resize(slot + 1);
+            }
+            m_registered_externs[slot] = RegisteredExtern(func, user_data);
+        }
+
     private:
+        struct RegisteredExtern {
+            ExternFunc func;
+            void* user_data;
+
+            RegisteredExtern() :
+                func(nullptr),
+                user_data(nullptr) { }
+
+            RegisteredExtern(ExternFunc func, void* user_data) :
+                func(func),
+                user_data(user_data) { }
+        };
+
         std::vector<Inst> m_program;
         std::size_t m_program_cnt;
         Stack<Value> m_stack;
@@ -1396,17 +1465,22 @@ namespace avm {
         LocalStack m_local_stack;
         Mem m_mem;
         bool m_exit_requested;
+        std::vector<RegisteredExtern> m_registered_externs;
     };
 
+}
+
+static void test_extern(avm::Avm& avm, [[maybe_unused]] void* user_data) {
+    avm::Value value = avm.stack_pop();
+    std::cout << "Hello from `test_extern`, the value is "
+              << value.floating()
+              << std::endl;
 }
 
 int main() {
     using namespace avm;
 
     std::vector<Elem> elems = {
-        Elem::call_im("main"),
-        Elem::inst({ Op::Exit }),
-        
         Elem::label("fib"),
             Elem::inst({ Op::StoreLocal, Value::uinteger(0) }),
             Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
@@ -1445,90 +1519,13 @@ int main() {
                 Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
                 Elem::inst({ Op::MulInt }),
                 Elem::inst({ Op::Ret }),
-    
-        Elem::label("main"),
 
-        Elem::inst({ Op::Push, Value::integer(19)}),
-        Elem::call_im("fib"),
-        Elem::inst({ Op::PrintInt }),
-
-        Elem::inst({ Op::Push, Value::integer(19) }),
-        Elem::call_im("factorial"),
-        Elem::inst({ Op::PrintInt }),
-
-        Elem::inst({ Op::MakeMem }),
-        Elem::inst({ Op::StoreLocal, Value::uinteger(0)}),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(0)}),
-        Elem::inst({ Op::StoreMemIm, Value::integer(10)}),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(0)}),
-        Elem::inst({ Op::LoadMem }),
-        Elem::inst({ Op::PrintInt }),
-
-        Elem::inst({ Op::MakeMemCountIm, Value::uinteger(10) }),
-        Elem::inst({ Op::StoreLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(0), 
-            Value::integer(10) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(1), 
-            Value::integer(11) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(2), 
-            Value::integer(12) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(3), 
-            Value::integer(13) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(4), 
-            Value::integer(14) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(5), 
-            Value::integer(15) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(6), 
-            Value::integer(16) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(7), 
-            Value::integer(17) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(8), 
-            Value::integer(18) }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::StoreMemImIdxIm, Value::uinteger(9), 
-            Value::integer(19) }),
-
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(0) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(1) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(2) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(3) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(4) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(5) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(6) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(7) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(8) }),
-        Elem::inst({ Op::PrintInt }),
-        Elem::inst({ Op::LoadLocal, Value::uinteger(1) }),
-        Elem::inst({ Op::LoadMemIdxIm, Value::uinteger(9) }),
-        Elem::inst({ Op::PrintInt }),
-
-        Elem::inst({ Op::Ret })
+        Elem::label("test_extern"),
+            Elem::inst({ Op::Push, Value::floating(10.0) }),
+            Elem::inst({ Op::Push, Value::floating(12.1) }),
+            Elem::inst({ Op::AddFloat }),
+            Elem::inst({ Op::CallExternIm, Value::uinteger(0) }),
+            Elem::inst({ Op::Ret })
     };
 
     Resolver resolver(elems);
@@ -1536,7 +1533,38 @@ int main() {
 
     Avm avm(program);
 
-    avm.run();
+    avm.register_extern(0, test_extern, nullptr);
+
+    {
+        std::int64_t n = 5;
+        avm.stack_push(Value::integer(n));
+        auto factorial_addr = *resolver.get_label_addr("factorial");
+        avm.call(factorial_addr);
+        Value ret = avm.stack_pop();
+        std::cout << "factorial(" 
+                  << n 
+                  << ") = " 
+                  << ret.integer() 
+                  << std::endl;
+    }
+
+    {
+        std::int64_t n = 12;
+        avm.stack_push(Value::integer(n));
+        auto fib_addr = *resolver.get_label_addr("fib");
+        avm.call(fib_addr);
+        Value ret = avm.stack_pop();
+        std::cout << "fib("
+                  << n
+                  << ") = "
+                  << ret.integer()
+                  << std::endl;
+    }
+
+    {
+        auto test_extern_addr = *resolver.get_label_addr("test_extern");
+        avm.call(test_extern_addr);
+    }
 
     return 0;
 }
