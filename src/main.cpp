@@ -4,6 +4,8 @@
 #include "resolver.h"
 #include "avm.h"
 #include "value.h"
+#include "externs.h"
+#include "stringstore.h"
 
 static void test_extern(avm::Avm& avm, [[maybe_unused]] void* user_data) {
     avm::Value value = avm.stack_pop();
@@ -74,12 +76,16 @@ int main() {
     };
 
     Resolver resolver(elems);
+
     auto program = resolver.resolve();
 
-    Avm avm(program);
+    Externs externs;
+    externs.register_func(0, test_extern, nullptr);
 
-    avm.register_extern(0, test_extern, nullptr);
-    avm.add_string(0, "hello world!");
+    StringStore string_store;
+    string_store.add(0, "hello world!");
+
+    Avm avm(program, externs, string_store);
 
     {
         std::int64_t n = 5;

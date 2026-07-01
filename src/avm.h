@@ -11,12 +11,18 @@
 #include "stack.h"
 #include "localstack.h"
 #include "mem.h"
+#include "stringstore.h"
+#include "externs.h"
 
 namespace avm {
 
     class Avm {
     public:
-        Avm(const std::vector<Inst>& program) :
+        Avm(
+            const std::vector<Inst>& program,
+            Externs& externs,
+            StringStore& string_store
+        ) :
             m_program(program),
             m_program_cnt(0),
             m_stack(),
@@ -24,14 +30,11 @@ namespace avm {
             m_local_stack(),
             m_mem(m_stack, m_local_stack),
             m_exit_requested(false),
-            m_registered_externs(),
-            m_string_storage(),
-            m_strings() { 
+            m_externs(externs),
+            m_string_store(string_store) { 
             m_stack.reserve(1024);
             m_ret_stack.reserve(1024);
             m_local_stack.reserve(1024);
-            m_string_storage.reserve(1024);
-            m_strings.reserve(256);
         }
 
         void execute_inst(const Inst& inst) {
@@ -52,7 +55,7 @@ namespace avm {
             } break;
             case Op::PushStr: {
                 std::uint64_t id = inst.a.uinteger();
-                StrHeader* header = m_mem.str_intern(m_strings[id]);
+                StrHeader* header = m_mem.str_intern(m_string_store[id]);
                 m_stack.push(Value::string(header));
             } break;
 
@@ -473,13 +476,13 @@ namespace avm {
             } break;
             case Op::CallExtern: {
                 std::uint64_t slot = m_stack.pop().uinteger();
-                auto& reg_extern = m_registered_externs[slot];
-                reg_extern.func(*this, reg_extern.user_data);
+                const auto& extern_ = m_externs[slot];
+                extern_.func(*this, extern_.user_data);
             } break;
             case Op::CallExternIm: {
                 std::uint64_t slot = inst.a.uinteger();
-                auto& reg_extern = m_registered_externs[slot];
-                reg_extern.func(*this, reg_extern.user_data);
+                auto& extern_ = m_externs[slot];
+                extern_.func(*this, extern_.user_data);
             } break;
             case Op::Ret: {
                 std::uint64_t addr = m_ret_stack.pop();
@@ -677,47 +680,7 @@ namespace avm {
             }
         }
 
-        using ExternFunc = void (*)(Avm& avm, void* user_data);
-
-        void register_extern(
-            std::uint64_t slot, 
-            ExternFunc func, 
-            void* user_data
-        ) {
-            if (slot >= m_registered_externs.size()) {
-                m_registered_externs.resize(slot + 1);
-            }
-            m_registered_externs[slot] = RegisteredExtern(func, user_data);
-        }
-
-        void add_string(std::uint64_t slot, std::string_view string) {
-            char* ptr = m_string_storage.data() + m_string_storage.size();
-            m_string_storage.insert(
-                m_string_storage.end(), 
-                string.begin(), 
-                string.end()
-            );
-            StrKey key(ptr, string.size());
-            if (slot >= m_strings.size()) {
-                m_strings.resize(slot + 1);
-            }
-            m_strings[slot] = key;
-        }
-
     private:
-        struct RegisteredExtern {
-            ExternFunc func;
-            void* user_data;
-
-            RegisteredExtern() :
-                func(nullptr),
-                user_data(nullptr) { }
-
-            RegisteredExtern(ExternFunc func, void* user_data) :
-                func(func),
-                user_data(user_data) { }
-        };
-
         std::vector<Inst> m_program;
         std::size_t m_program_cnt;
         Stack<Value> m_stack;
@@ -725,9 +688,8 @@ namespace avm {
         LocalStack m_local_stack;
         Mem m_mem;
         bool m_exit_requested;
-        std::vector<RegisteredExtern> m_registered_externs;
-        std::vector<char> m_string_storage;
-        std::vector<StrKey> m_strings;
+        Externs& m_externs;
+        StringStore& m_string_store;
     };
     
 }
