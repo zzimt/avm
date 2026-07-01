@@ -95,6 +95,8 @@ namespace avm {
         EqBool,
         NeqBool,
 
+        EqStr,
+
         CIntUint,
         CIntFloat,
         CUintInt,

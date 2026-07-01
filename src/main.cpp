@@ -79,6 +79,10 @@ int main() {
             Elem::inst({ Op::Push, Value::uinteger(7)}),
             Elem::inst({ Intrin::SubStr }),
             Elem::inst({ Op::PrintStr }),
+            Elem::inst({ Op::PushStr, Value::uinteger(2) }),
+            Elem::inst({ Op::PushStr, Value::uinteger(3) }),
+            Elem::inst({ Op::EqStr }),
+            Elem::inst({ Op::PrintBool }),
             Elem::inst({ Op::Ret }),
     };
 
@@ -92,6 +96,8 @@ int main() {
     StringStore string_store;
     string_store.add(0, "hello world!");
     string_store.add(1, " goodbye world!");
+    string_store.add(2, "equal");
+    string_store.add(3, "equal");
 
     Avm avm(program, externs, string_store);
 

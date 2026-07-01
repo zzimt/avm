@@ -429,6 +429,12 @@ namespace avm {
                 m_stack.push(Value::boolean(a != b));
             } break;
 
+            case Op::EqStr: {
+                StrHeader* b = m_stack.pop().string();
+                StrHeader* a = m_stack.pop().string();
+                m_stack.push(Value::boolean(a == b));
+            } break;
+
             case Op::CIntUint: {
                 std::int64_t a = m_stack.pop().integer();
                 m_stack.push(Value::uinteger(std::uint64_t(a)));
