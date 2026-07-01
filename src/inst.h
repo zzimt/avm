@@ -7,12 +7,13 @@
 
 namespace avm {
 
-        enum class Op : std::uint8_t {
+    enum class Op : std::uint8_t {
         Nop = 0,
 
         StoreLocal,
         LoadLocal, 
         Push,
+        PushStr,
 
         MakeMem,
         MakeMemCount,
@@ -32,9 +33,10 @@ namespace avm {
 
         PrintInt,
         PrintUint,
-        PrintBool,
-        PrintRef,
         PrintFloat,
+        PrintBool,
+        PrintStr,
+        PrintRef,
 
         AddInt,
         SubInt,
@@ -146,6 +148,10 @@ namespace avm {
         PowFloat,
         SignFloat,
         AbsFloat,
+
+        LenStr,
+        ConcatStr,
+        SubStr,
     };
 
     struct Inst {

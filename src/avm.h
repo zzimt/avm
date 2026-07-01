@@ -24,10 +24,14 @@ namespace avm {
             m_local_stack(),
             m_mem(m_stack, m_local_stack),
             m_exit_requested(false),
-            m_registered_externs() { 
+            m_registered_externs(),
+            m_string_storage(),
+            m_strings() { 
             m_stack.reserve(1024);
             m_ret_stack.reserve(1024);
             m_local_stack.reserve(1024);
+            m_string_storage.reserve(1024);
+            m_strings.reserve(256);
         }
 
         void execute_inst(const Inst& inst) {
@@ -45,6 +49,11 @@ namespace avm {
             } break;
             case Op::Push: {
                 m_stack.push(inst.a);
+            } break;
+            case Op::PushStr: {
+                std::uint64_t id = inst.a.uinteger();
+                StrHeader* header = m_mem.str_intern(m_strings[id]);
+                m_stack.push(Value::string(header));
             } break;
 
             case Op::MakeMem: {
@@ -129,9 +138,20 @@ namespace avm {
                 std::uint64_t val = m_stack.pop().uinteger();
                 std::cout << val << std::endl;
             } break;
+            case Op::PrintFloat: {
+                double val = m_stack.pop().floating();
+                std::cout << val << std::endl;
+            } break;
             case Op::PrintBool: {
                 std::uint8_t val = m_stack.pop().boolean();
                 std::cout << (val ? "true" : "false") << std::endl;
+            } break;
+            case Op::PrintStr: {
+                StrHeader* val = m_stack.pop().string();
+                std::cout << "\""
+                          << std::string_view(val->data(), val->size)
+                          << "\""
+                          << std::endl;
             } break;
             case Op::PrintRef: {
                 MemHeader* val = m_stack.pop().reference();
@@ -140,10 +160,6 @@ namespace avm {
                           << std::uintptr_t(val) 
                           << std::dec 
                           << std::endl;
-            } break;
-            case Op::PrintFloat: {
-                double val = m_stack.pop().floating();
-                std::cout << val << std::endl;
             } break;
 
             case Op::AddInt: {
@@ -628,6 +644,17 @@ namespace avm {
                 double a = m_stack.pop().floating();
                 m_stack.push(Value::floating(std::abs(a)));
             } break;
+
+            case Intrin::LenStr: {
+                StrHeader* a = m_stack.pop().string();
+                m_stack.push(Value::uinteger(a->size));
+            } break;
+            case Intrin::ConcatStr: {
+                // TODO
+            } break;
+            case Intrin::SubStr: {
+                // TODO
+            } break;
             }
         }
 
@@ -663,6 +690,20 @@ namespace avm {
             m_registered_externs[slot] = RegisteredExtern(func, user_data);
         }
 
+        void add_string(std::uint64_t slot, std::string_view string) {
+            char* ptr = m_string_storage.data() + m_string_storage.size();
+            m_string_storage.insert(
+                m_string_storage.end(), 
+                string.begin(), 
+                string.end()
+            );
+            StrKey key(ptr, string.size());
+            if (slot >= m_strings.size()) {
+                m_strings.resize(slot + 1);
+            }
+            m_strings[slot] = key;
+        }
+
     private:
         struct RegisteredExtern {
             ExternFunc func;
@@ -685,6 +726,8 @@ namespace avm {
         Mem m_mem;
         bool m_exit_requested;
         std::vector<RegisteredExtern> m_registered_externs;
+        std::vector<char> m_string_storage;
+        std::vector<StrKey> m_strings;
     };
     
 }

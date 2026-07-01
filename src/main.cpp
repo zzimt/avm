@@ -60,7 +60,17 @@ int main() {
             Elem::inst({ Op::Push, Value::floating(12.1) }),
             Elem::inst({ Op::AddFloat }),
             Elem::inst({ Op::CallExternIm, Value::uinteger(0) }),
-            Elem::inst({ Op::Ret })
+            Elem::inst({ Op::Ret }),
+
+        Elem::label("test_strings"),
+            Elem::inst({ Op::PushStr, Value::uinteger(0) }),
+            Elem::inst({ Op::PrintStr }),
+            Elem::inst({ Op::PushStr, Value::uinteger(0) }),
+            Elem::inst({ Op::CallIntrin, Value::uinteger(
+                static_cast<std::uint8_t>(Intrin::LenStr)
+            )}),
+            Elem::inst({ Op::PrintUint }),
+            Elem::inst({ Op::Ret }),
     };
 
     Resolver resolver(elems);
@@ -69,6 +79,7 @@ int main() {
     Avm avm(program);
 
     avm.register_extern(0, test_extern, nullptr);
+    avm.add_string(0, "hello world!");
 
     {
         std::int64_t n = 5;
@@ -99,6 +110,11 @@ int main() {
     {
         auto test_extern_addr = *resolver.get_label_addr("test_extern");
         avm.call(test_extern_addr);
+    }
+
+    {
+        auto test_strings_addr = *resolver.get_label_addr("test_strings");
+        avm.call(test_strings_addr);
     }
 
     return 0;

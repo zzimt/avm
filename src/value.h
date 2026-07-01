@@ -10,8 +10,11 @@ namespace avm {
         Uint,
         Float,
         Bool,
+        Str,
         Ref,
     };
+
+    struct StrHeader;
 
     struct MemHeader;
 
@@ -22,6 +25,7 @@ namespace avm {
             std::uint64_t uinteger;
             double floating;
             std::uint8_t boolean;
+            StrHeader* string;
             MemHeader* reference;
         };
 
@@ -55,6 +59,14 @@ namespace avm {
 
         inline std::uint8_t boolean() const {
             return m_data.boolean;
+        }
+
+        static inline Value string(StrHeader* value) {
+            return Value(Type::Str, { .string = value });
+        }
+
+        inline StrHeader* string() {
+            return m_data.string;
         }
 
         static inline Value reference(MemHeader* value) {
