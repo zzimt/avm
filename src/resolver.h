@@ -25,23 +25,42 @@ namespace avm {
 
         struct Label {
             std::string_view value;
+
+            inline Label(std::string_view value) :
+                value(value) { }
         };
 
         struct If {
             std::string_view true_label;
             std::string_view false_label; 
+
+            inline If(
+                std::string_view true_label, 
+                std::string_view false_label
+            ) :
+                true_label(true_label),
+                false_label(false_label) { }
         };
 
         struct CallIm {
             std::string_view label;
+
+            inline CallIm(std::string_view label) :
+                label(label) { }
         };
 
         struct GotoIm {
             std::string_view label;
+
+            inline GotoIm(std::string_view label) :
+                label(label) { }
         };
 
         struct PushLabel {
             std::string_view label;
+
+            inline PushLabel(std::string_view label) :
+                label(label) { }
         };
 
         union Data {
@@ -51,13 +70,31 @@ namespace avm {
             GotoIm goto_im;
             PushLabel push_label;
             Inst inst;
+
+            Data(const Label& label) :
+                label(label) { }
+
+            Data(const If& if_) :
+                if_(if_) { }
+
+            Data(const CallIm& call_im) :
+                call_im(call_im) { }
+
+            Data(const GotoIm& goto_im) :
+                goto_im(goto_im) { }
+
+            Data(const PushLabel& push_label) :
+                push_label(push_label) { }
+
+            Data(const Inst& inst) :
+                inst(inst) { }
         };
 
-        static inline Elem label(const std::string_view& value) {
+        static inline Elem label(std::string_view value) {
             return Elem(
                 Kind::Label, 
-                { 
-                    .label = { .value = value } 
+                Data { 
+                    Label(value)
                 }
             );
         }
@@ -67,17 +104,12 @@ namespace avm {
         }
 
         static inline Elem if_(
-            const std::string_view& true_label, 
-            const std::string_view& false_label
+            std::string_view true_label, 
+            std::string_view false_label
         ) {
             return Elem(
                 Kind::If, 
-                { 
-                    .if_ = { 
-                        .true_label = true_label, 
-                        .false_label = false_label
-                    } 
-                }
+                Data(If(true_label, false_label))
             );
         }
 
@@ -88,9 +120,7 @@ namespace avm {
         static inline Elem call_im(std::string_view label) {
             return Elem(
                 Kind::CallIm, 
-                { 
-                    .call_im = { .label = label } 
-                }
+                Data(CallIm(label))
             );
         }
 
@@ -101,9 +131,7 @@ namespace avm {
         static inline Elem goto_im(std::string_view label) {
             return Elem(
                 Kind::GotoIm,
-                {
-                    .goto_im = { .label = label }
-                }
+                Data(GotoIm(label))
             );
         }
 
@@ -114,9 +142,7 @@ namespace avm {
         static inline Elem push_label(std::string_view label) {
             return Elem(
                 Kind::PushLabel,
-                {
-                    .push_label = { .label = label }
-                }
+                Data (PushLabel(label))
             );
         }
 
@@ -125,7 +151,7 @@ namespace avm {
         }
 
         static inline Elem inst(const Inst& inst) {
-            return Elem(Kind::Inst, { .inst = inst });
+            return Elem(Kind::Inst, Data(inst));
         }
 
         inline Inst inst() const {

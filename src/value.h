@@ -30,7 +30,9 @@ namespace avm {
         };
 
         static inline Value integer(std::int64_t value) {
-            return Value(Type::Int, { .integer = value });
+            Data data;
+            data.integer = value;
+            return Value(Type::Int, data);
         }
 
         inline std::int64_t integer() const {
@@ -38,7 +40,9 @@ namespace avm {
         }
 
         static inline Value uinteger(std::uint64_t value) {
-            return Value(Type::Uint, { .uinteger = value });
+            Data data;
+            data.uinteger = value;
+            return Value(Type::Uint, data);
         }
 
         inline std::uint64_t uinteger() const {
@@ -46,7 +50,9 @@ namespace avm {
         }
 
         static inline Value floating(double value) {
-            return Value(Type::Float, { .floating = value });
+            Data data;
+            data.floating = value;
+            return Value(Type::Float, data);
         }
 
         inline float floating() const {
@@ -54,7 +60,9 @@ namespace avm {
         }
 
         static inline Value boolean(std::uint8_t value) {
-            return Value(Type::Bool, { .boolean = value });
+            Data data;
+            data.boolean = value;
+            return Value(Type::Bool, data);
         }
 
         inline std::uint8_t boolean() const {
@@ -62,7 +70,9 @@ namespace avm {
         }
 
         static inline Value string(StrHeader* value) {
-            return Value(Type::Str, { .string = value });
+            Data data;
+            data.string = value;
+            return Value(Type::Str, data);
         }
 
         inline StrHeader* string() {
@@ -70,7 +80,9 @@ namespace avm {
         }
 
         static inline Value reference(MemHeader* value) {
-            return Value(Type::Ref, { .reference = value });
+            Data data;
+            data.reference = value;
+            return Value(Type::Ref, data);
         }
 
         inline MemHeader* reference() const {
@@ -83,7 +95,7 @@ namespace avm {
         
         inline Value() :
             m_type(Type::Int),
-            m_data({ .integer = 0 }) { }
+            m_data({ 0 }) { }
 
         inline Value(Type type, Data data) :
             m_type(type),
