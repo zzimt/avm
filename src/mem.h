@@ -223,7 +223,11 @@ namespace avm {
 
         ~Mem() {
             for (const auto& block : m_tracked_blocks) {
-                free_block(block);
+                MemHeader::deallocate(block);
+            }
+
+            for (const auto& [key, str] : m_strings) {
+                StrHeader::deallocate(str);
             }
         }
 
@@ -268,10 +272,6 @@ namespace avm {
             m_total_allocated += header->allocated_size_in_bytes();
 
             return header;
-        }
-
-        inline void free_block(MemHeader* header) {
-            MemHeader::deallocate(header);
         }
 
         inline void run_gc() {
@@ -336,7 +336,7 @@ namespace avm {
                     m_live_bytes += header->allocated_size_in_bytes();
                     m_tracked_blocks[write++] = header;
                 } else {
-                    free_block(header);
+                    MemHeader::deallocate(header);
                 }
             }
 
