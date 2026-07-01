@@ -68,10 +68,17 @@ int main() {
             Elem::inst({ Op::PushStr, Value::uinteger(0) }),
             Elem::inst({ Op::PrintStr }),
             Elem::inst({ Op::PushStr, Value::uinteger(0) }),
-            Elem::inst({ Op::CallIntrin, Value::uinteger(
-                static_cast<std::uint8_t>(Intrin::LenStr)
-            )}),
+            Elem::inst({ Intrin::LenStr }),
             Elem::inst({ Op::PrintUint }),
+            Elem::inst({ Op::PushStr, Value::uinteger(0) }),
+            Elem::inst({ Op::PushStr, Value::uinteger(1) }),
+            Elem::inst({ Intrin::ConcatStr }),
+            Elem::inst({ Op::PrintStr }),
+            Elem::inst({ Op::PushStr, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(1) }),
+            Elem::inst({ Op::Push, Value::uinteger(7)}),
+            Elem::inst({ Intrin::SubStr }),
+            Elem::inst({ Op::PrintStr }),
             Elem::inst({ Op::Ret }),
     };
 
@@ -84,6 +91,7 @@ int main() {
 
     StringStore string_store;
     string_store.add(0, "hello world!");
+    string_store.add(1, " goodbye world!");
 
     Avm avm(program, externs, string_store);
 

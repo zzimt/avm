@@ -173,6 +173,11 @@ namespace avm {
             op(op),
             a(a),
             b(b) { }
+
+        inline Inst(Intrin intrin) :
+            op(Op::CallIntrin),
+            a(Value::uinteger(static_cast<std::uint64_t>(intrin))),
+            b() { }
     };
 
 }

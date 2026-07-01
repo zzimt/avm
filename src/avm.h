@@ -6,6 +6,7 @@
 #include <iostream>
 #include <cmath>
 #include <cstdint>
+#include <cstring>
 
 #include "inst.h"
 #include "stack.h"
@@ -653,12 +654,31 @@ namespace avm {
                 m_stack.push(Value::uinteger(a->size));
             } break;
             case Intrin::ConcatStr: {
-                // TODO
+                StrHeader* b = m_stack.pop().string();
+                StrHeader* a = m_stack.pop().string();
+                char* buf = new char[a->size + b->size];
+                memcpy(buf, a->data(), a->size);
+                memcpy(buf + a->size, b->data(), b->size);
+                StrKey key(buf, a->size + b->size);
+                StrHeader* res = m_mem.str_intern(key);
+                delete[] buf;
+                m_stack.push(Value::string(res));
             } break;
             case Intrin::SubStr: {
-                // TODO
+                std::uint64_t b = m_stack.pop().uinteger();
+                std::uint64_t a = m_stack.pop().uinteger();
+                StrHeader* str = m_stack.pop().string();
+                std::size_t size = b - a;
+                char* buf = new char[size];
+                memcpy(buf, str->data() + a, size);
+                StrKey key(buf, size);
+                StrHeader* res = m_mem.str_intern(key);
+                delete[] buf;
+                m_stack.push(Value::string(res));
             } break;
             }
+            // 0 1 2 3 4
+            //     2   4
         }
 
         inline void stack_push(const Value& value) {
