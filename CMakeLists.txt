@@ -14,4 +14,5 @@ set_target_properties(avm PROPERTIES
 target_include_directories(avm PRIVATE "vendor/rapidhash/include")
 
 add_subdirectory("vendor/abseil-cpp")
-target_link_libraries(avm absl::flat_hash_map)
+
+target_link_libraries(avm absl::flat_hash_map m)
