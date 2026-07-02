@@ -4,9 +4,9 @@
 #include <vector>
 #include <cstdint>
 
-namespace avm {
+#include "avmfwd.h"
 
-    class Avm;
+namespace avm {
 
     class Externs {
     public:

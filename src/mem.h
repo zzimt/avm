@@ -286,6 +286,7 @@ namespace avm {
                 switch (value.type()) {
                 case Type::Int:
                 case Type::Uint:
+                case Type::Byte:
                 case Type::Float:
                 case Type::Bool:
                     break;
