@@ -268,6 +268,10 @@ namespace avm {
                 Uint val = m_stack.pop().uinteger();
                 std::cout << val << std::endl;
             } break;
+            case Op::PrintByte: {
+                Byte val = m_stack.pop().byte();
+                std::cout << Uint(val) << std::endl;
+            } break;
             case Op::PrintFloat: {
                 Float val = m_stack.pop().floating();
                 std::cout << val << std::endl;

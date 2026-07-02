@@ -61,6 +61,7 @@ namespace avm {
 
         PrintInt,
         PrintUint,
+        PrintByte,
         PrintFloat,
         PrintBool,
         PrintStr,
