@@ -236,7 +236,10 @@ namespace avm {
         new (
             reinterpret_cast<std::byte*>(block_ptr) +
             MemHeaderSize<Value>::value
-        ) Value[count];
+        ) Value[count](); // calling the `()` constructor is important here as 
+        // we need to ensure that all values are zero when allocated. It is
+        // especially important for Str and Ref types so that the GC ignores
+        // uninitialized (null) strings and references
         return header;
     }
 
@@ -263,7 +266,10 @@ namespace avm {
         new (
             reinterpret_cast<std::byte*>(block_ptr) +
             MemHeaderSize<T>::value
-        ) T[count];
+        ) T[count](); // calling the `()` constructor is important here as we
+        // need to ensure that all values are zero when allocated. It is
+        // especially important for Str and Ref types so that the GC ignores
+        // uninitialized (null) strings and references
         return header;
     }
 
@@ -423,10 +429,12 @@ namespace avm {
             m_gray.clear();
 
             auto mark_str_header = [](StrHeader* header) {
+                if (header == nullptr) return; // ignore uninitialized slots
                 header->mark = true;
             };
 
             auto mark_mem_header = [this](MemHeader* header) {
+                if (header == nullptr) return; // ignore uninitialized slots
                 if (!header->mark) {
                     header->mark = true;
                     m_gray.push_back(header);
