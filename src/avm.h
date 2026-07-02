@@ -701,14 +701,14 @@ namespace avm {
             } break;
             case Op::Call: {
                 Uint addr = m_stack.pop().uinteger();
-                m_ret_stack.push(m_program_cnt + 1);
+                m_ret_stack.push(ReturnFrame::addr(m_program_cnt + 1));
                 m_program_cnt = addr;
                 m_local_stack.push();
                 return;
             } break;
             case Op::CallIm: {
                 Uint addr = inst.a.uinteger();
-                m_ret_stack.push(m_program_cnt + 1);
+                m_ret_stack.push(ReturnFrame::addr(m_program_cnt + 1));
                 m_program_cnt = addr;
                 m_local_stack.push();
                 return;
@@ -724,10 +724,13 @@ namespace avm {
                 extern_.func(*this, extern_.user_data);
             } break;
             case Op::Ret: {
-                Uint addr = m_ret_stack.pop();
-                m_program_cnt = addr;
+                ReturnFrame frame = m_ret_stack.pop();
+                if (frame.is_exit()) {
+                    m_exit_requested = true;
+                    return;
+                }
+                m_program_cnt = frame.addr();
                 m_local_stack.pop();
-                if (m_ret_stack.empty()) m_exit_requested = true;
                 return;
             } break;
             case Op::Goto: {
@@ -928,7 +931,7 @@ namespace avm {
         void call(std::uint64_t addr) {
             m_exit_requested = false;
             m_program_cnt = addr;
-            m_ret_stack.push(0);
+            m_ret_stack.push(ReturnFrame::exit());
             m_local_stack.push();
             while (true) {
                 if (m_exit_requested) return;
@@ -937,10 +940,37 @@ namespace avm {
         }
 
     private:
+        class ReturnFrame {
+        public:
+            static inline ReturnFrame addr(std::uint64_t addr) {
+                return ReturnFrame(addr, false);
+            }
+
+            static inline ReturnFrame exit() {
+                return ReturnFrame(0, true);
+            }
+
+            inline std::uint64_t addr() {
+                return m_addr;
+            }
+
+            inline bool is_exit() {
+                return m_is_exit;
+            }
+
+        private:
+            std::uint64_t m_addr;
+            bool m_is_exit;
+
+            inline ReturnFrame(std::uint64_t addr, bool is_exit) :
+                m_addr(addr),
+                m_is_exit(is_exit) { }
+        };
+
         std::vector<Inst> m_program;
         std::size_t m_program_cnt;
         Stack<Value> m_stack;
-        Stack<std::uint64_t> m_ret_stack;
+        Stack<ReturnFrame> m_ret_stack;
         LocalStack m_local_stack;
         Mem m_mem;
         bool m_exit_requested;

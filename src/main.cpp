@@ -1,5 +1,4 @@
 #include <iostream>
-#include <cstdint>
 
 #include "resolver.h"
 #include "avm.h"
@@ -8,10 +7,22 @@
 #include "stringstore.h"
 
 static void test_extern(avm::Avm& avm, [[maybe_unused]] void* user_data) {
-    avm::Value value = avm.stack_pop();
+    using namespace avm;
+
+    Resolver* resolver = static_cast<Resolver*>(user_data);
+
+    Value value = avm.stack_pop();
     std::cout << "Hello from `test_extern`, the value is "
               << value.floating()
               << std::endl;
+
+    {
+        Uint n = 12345600;
+        auto should_be_called_from_extern_addr = 
+            *resolver->get_label_addr("should_be_called_from_extern");
+        avm.stack_push(Value::uinteger(n));
+        avm.call(should_be_called_from_extern_addr);
+    }
 }
 
 int main() {
@@ -62,6 +73,16 @@ int main() {
             Elem::inst({ Op::Push, Value::floating(12.1) }),
             Elem::inst({ Op::AddFloat }),
             Elem::inst({ Op::CallExternIm, Value::uinteger(0) }),
+            Elem::inst({ Op::Ret }),
+
+        Elem::label("should_be_called_from_extern"),
+            Elem::inst({ Op::StoreLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::PushStr, Value::uinteger(4) }),
+            Elem::inst({ Op::PrintStr }),
+            Elem::inst({ Op::PushStr, Value::uinteger(5) }),
+            Elem::inst({ Op::PrintStr }),
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::PrintUint }),
             Elem::inst({ Op::Ret }),
 
         Elem::label("test_strings"),
@@ -198,18 +219,24 @@ int main() {
     auto program = resolver.resolve();
 
     Externs externs;
-    externs.register_func(0, test_extern, nullptr);
+    externs.register_func(0, test_extern, &resolver);
 
     StringStore string_store;
     string_store.add(0, "hello world!");
     string_store.add(1, " goodbye world!");
     string_store.add(2, "equal");
     string_store.add(3, "equal");
+    string_store.add(4, "this vm function was called from extern function!");
+    string_store.add(5, "the value is:");
 
     Avm avm(program, externs, string_store);
 
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << "-- factorial ---------------------------" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << std::endl;
     {
-        std::int64_t n = 5;
+        Int n = 20;
         avm.stack_push(Value::integer(n));
         auto factorial_addr = *resolver.get_label_addr("factorial");
         avm.call(factorial_addr);
@@ -220,9 +247,14 @@ int main() {
                   << ret.integer() 
                   << std::endl;
     }
+    std::cout << std::endl;
 
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << "-- fib ---------------------------------" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << std::endl;
     {
-        std::int64_t n = 12;
+        Int n = 30;
         avm.stack_push(Value::integer(n));
         auto fib_addr = *resolver.get_label_addr("fib");
         avm.call(fib_addr);
@@ -233,17 +265,32 @@ int main() {
                   << ret.integer()
                   << std::endl;
     }
+    std::cout << std::endl;
 
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << "-- test_extern -------------------------" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << std::endl;
     {
         auto test_extern_addr = *resolver.get_label_addr("test_extern");
         avm.call(test_extern_addr);
     }
+    std::cout << std::endl;
 
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << "-- test_strings ------------------------" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << std::endl;
     {
         auto test_strings_addr = *resolver.get_label_addr("test_strings");
         avm.call(test_strings_addr);
     }
+    std::cout << std::endl;
 
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << "-- test_uniforms -----------------------" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << std::endl;
     {
         auto test_uniforms_addr = *resolver.get_label_addr("test_uniforms");
         avm.call(test_uniforms_addr);
