@@ -695,7 +695,6 @@ namespace avm {
                 m_stack.push(Value::floating(Float(a)));
             } break;
 
-
             case Op::If: {
                 Uint true_addr = inst.a.uinteger();
                 Uint false_addr = inst.b.uinteger();
