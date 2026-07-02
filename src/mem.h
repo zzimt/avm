@@ -22,6 +22,7 @@ namespace avm {
     struct StrHeader {
         std::size_t size;
         bool mark;
+        std::size_t total_size;
 
         static inline std::size_t allocated_size_in_bytes(std::size_t size);
 
@@ -29,15 +30,14 @@ namespace avm {
 
         static inline void deallocate(StrHeader* header);
 
-        inline StrHeader(std::size_t size, bool mark) :
+        inline StrHeader(std::size_t size, bool mark, std::size_t total_size) :
             size(size),
-            mark(mark) { }
+            mark(mark),
+            total_size(total_size) { }
 
         inline char* data();
 
         inline const char* data() const;
-
-        inline std::size_t allocated_size_in_bytes() const;
     };
 
     static constexpr std::size_t STR_HEADER_ALIGN =
@@ -60,7 +60,7 @@ namespace avm {
             std::align_val_t(STR_HEADER_ALIGN)
         );
 
-        auto* header = new (block_ptr) StrHeader(size, mark);
+        auto* header = new (block_ptr) StrHeader(size, mark, total_size);
         new (
             reinterpret_cast<std::byte*>(block_ptr) + STR_HEADER_SIZE
         ) char[size];
@@ -82,10 +82,6 @@ namespace avm {
         return reinterpret_cast<const char*>(
             reinterpret_cast<const std::byte*>(this) + STR_HEADER_SIZE
         );
-    }
-
-    inline std::size_t StrHeader::allocated_size_in_bytes() const {
-        return STR_HEADER_SIZE + sizeof(char) * size;
     }
 
     struct StrKey {
@@ -120,74 +116,189 @@ namespace avm {
     };
 
     struct MemHeader {
+        enum class UniformType {
+            None,
+            Primitive,
+            Str,
+            Ref,
+        };
+
         std::size_t count;
         bool mark;
+        UniformType uniform_type;
+        std::align_val_t type_align;
+        std::size_t type_size;
+        std::size_t total_size;
 
         static inline std::size_t allocated_size_in_bytes(
             std::size_t elem_count
         );
 
-        static inline MemHeader* allocate(std::size_t count, bool mark);
+        template<typename T>
+        static inline std::size_t allocated_size_in_bytes_uniform(
+            std::size_t elem_count
+        );
+
+        static inline MemHeader* allocate(std::size_t count);
+
+        template<typename T>
+        static inline MemHeader* allocate_uniform(std::size_t count);
 
         static inline void deallocate(MemHeader* header);
 
-        inline MemHeader(std::size_t count, bool mark) :
-            count(count),
-            mark(mark) { }
+        inline MemHeader(
+            std::size_t count, 
+            bool mark, 
+            UniformType uniform_type,
+            std::align_val_t type_align,
+            std::size_t type_size,
+            std::size_t total_size
+        ) : count(count),
+            mark(mark),
+            uniform_type(uniform_type),
+            type_align(type_align),
+            type_size(type_size),
+            total_size(total_size) { }
 
         inline Value* values();
 
         inline const Value* values() const;
 
-        inline std::size_t allocated_size_in_bytes() const;
+        template<typename T>
+        inline T* values_uniform();
+
+        template<typename T>
+        inline const T* values_uniform() const;
     };
 
-    static constexpr std::size_t MEM_HEADER_ALIGN =
-        std::max(alignof(MemHeader), alignof(Value));
+    template<typename T>
+    struct MemHeaderAlign {
+        static constexpr std::size_t value = 
+            std::max(alignof(MemHeader), alignof(T));
+    };
 
-    static constexpr std::size_t MEM_HEADER_SIZE =
-        AVM_ALIGN_UP(sizeof(MemHeader), MEM_HEADER_ALIGN);
+    template<typename T>
+    struct MemHeaderSize {
+        static constexpr std::size_t value = 
+            AVM_ALIGN_UP(sizeof(MemHeader), MemHeaderAlign<T>::value);
+    };
+
+    template<typename T>
+    struct MemHeaderUniformType { 
+        static constexpr MemHeader::UniformType value = 
+            MemHeader::UniformType::Primitive;
+    };
+
+    template<>
+    struct MemHeaderUniformType<Str> {
+        static constexpr MemHeader::UniformType value = 
+            MemHeader::UniformType::Str;
+    };
+
+    template<>
+    struct MemHeaderUniformType<Ref> {
+        static constexpr MemHeader::UniformType value = 
+            MemHeader::UniformType::Ref;
+    };
 
     inline std::size_t MemHeader::allocated_size_in_bytes(
         std::size_t elem_count
     ) {
-        return MEM_HEADER_SIZE + sizeof(Value) * elem_count;
+        return MemHeaderSize<Value>::value + sizeof(Value) * elem_count;
     }
 
-    inline MemHeader* MemHeader::allocate(std::size_t count, bool mark) {
+    template<typename T>
+    inline std::size_t MemHeader::allocated_size_in_bytes_uniform(
+        std::size_t elem_count
+    ) {
+        return MemHeaderSize<T>::value + sizeof(T) * elem_count;
+    }
+
+    inline MemHeader* MemHeader::allocate(std::size_t count) {
         std::size_t total_size = allocated_size_in_bytes(count);
+
+        constexpr auto type_align = 
+            std::align_val_t(MemHeaderAlign<Value>::value);
         
         void* block_ptr = ::operator new(
             total_size, 
-            std::align_val_t(MEM_HEADER_ALIGN)
+            type_align
         );
 
-        auto* header = new (block_ptr) MemHeader(count, mark);
+        auto* header = new (block_ptr) MemHeader(
+            count, 
+            false, 
+            UniformType::None,
+            type_align,
+            sizeof(Value),
+            total_size
+        );
         new (
-            reinterpret_cast<std::byte*>(block_ptr) + MEM_HEADER_SIZE
+            reinterpret_cast<std::byte*>(block_ptr) +
+            MemHeaderSize<Value>::value
         ) Value[count];
+        return header;
+    }
+
+    template<typename T>
+    inline MemHeader* MemHeader::allocate_uniform(std::size_t count) {
+        std::size_t total_size = allocated_size_in_bytes_uniform<T>(count);
+
+        constexpr auto type_align = 
+            std::align_val_t(MemHeaderAlign<T>::value);
+
+        void* block_ptr = ::operator new(
+            total_size,
+            type_align
+        );
+
+        auto* header = new (block_ptr) MemHeader(
+            count,
+            false,
+            MemHeaderUniformType<T>::value,
+            type_align,
+            sizeof(T),
+            total_size
+        );
+        new (
+            reinterpret_cast<std::byte*>(block_ptr) +
+            MemHeaderSize<T>::value
+        ) T[count];
         return header;
     }
 
     inline void MemHeader::deallocate(MemHeader* header) {
         void* block_ptr = header;
-        ::operator delete(block_ptr, std::align_val_t(MEM_HEADER_ALIGN));
+        ::operator delete(block_ptr, header->type_align);
     }
 
     inline Value* MemHeader::values() {
         return reinterpret_cast<Value*>(
-            reinterpret_cast<std::byte*>(this) + MEM_HEADER_SIZE
+            reinterpret_cast<std::byte*>(this) + MemHeaderSize<Value>::value
         );
     }
 
     inline const Value* MemHeader::values() const {
         return reinterpret_cast<const Value*>(
-            reinterpret_cast<const std::byte*>(this) + MEM_HEADER_SIZE
+            reinterpret_cast<const std::byte*>(this) + 
+            MemHeaderSize<Value>::value
         );
     }
 
-    inline std::size_t MemHeader::allocated_size_in_bytes() const {
-        return MEM_HEADER_SIZE + sizeof(Value) * count;
+    template<typename T>
+    inline T* MemHeader::values_uniform() {
+        return reinterpret_cast<T*>(
+            reinterpret_cast<std::byte*>(this) +
+            MemHeaderSize<T>::value
+        );
+    }
+
+    template<typename T>
+    inline const T* MemHeader::values_uniform() const {
+        return reinterpret_cast<const T*>(
+            reinterpret_cast<const std::byte*>(this) +
+            MemHeaderSize<Value>::value
+        );
     }
 
     class Mem {
@@ -234,21 +345,28 @@ namespace avm {
         inline MemHeader* make(std::uint64_t count) {
             m_alloc_since_gc += MemHeader::allocated_size_in_bytes(count);
 
-            if (m_alloc_since_gc >= m_gc_threshold) {
-                run_gc();
-                m_alloc_since_gc = 0;
-
-                m_gc_threshold = std::max(
-                    m_live_bytes + m_live_bytes / 2, 
-                    std::size_t(1024 * 1024)
-                );
-            }
+            run_gc_if_needed();
 
             return alloc_block(count);
         }
 
+        template<typename T>
+        inline MemHeader* make_uniform(std::uint64_t count) {
+            m_alloc_since_gc += 
+                MemHeader::allocated_size_in_bytes_uniform<T>(count);
+
+            run_gc_if_needed();
+
+            return alloc_block_uniform<T>(count);
+        }
+
         inline Value& get(MemHeader* header, std::uint64_t idx) {
             return header->values()[idx];
+        }
+
+        template<typename T>
+        inline T& get_uniform(MemHeader* header, std::uint64_t idx) {
+            return header->values_uniform<T>()[idx];
         }
 
         inline StrHeader* str_intern(const StrKey& key) {
@@ -265,11 +383,33 @@ namespace avm {
         }
 
     private:
+        void run_gc_if_needed() {
+            if (m_alloc_since_gc >= m_gc_threshold) {
+                run_gc();
+                m_alloc_since_gc = 0;
+
+                m_gc_threshold = std::max(
+                    m_live_bytes + m_live_bytes / 2, 
+                    std::size_t(1024 * 1024)
+                );
+            }
+        }
+
         inline MemHeader* alloc_block(std::uint64_t count) {
-            auto* header = MemHeader::allocate(count, false);
+            auto* header = MemHeader::allocate(count);
 
             m_tracked_blocks.push_back(header);
-            m_total_allocated += header->allocated_size_in_bytes();
+            m_total_allocated += header->total_size;
+
+            return header;
+        }
+
+        template<typename T>
+        inline MemHeader* alloc_block_uniform(std::uint64_t count) {
+            auto* header = MemHeader::allocate_uniform<T>(count);
+
+            m_tracked_blocks.push_back(header);
+            m_total_allocated += header->total_size;
 
             return header;
         }
@@ -318,10 +458,32 @@ namespace avm {
                 MemHeader* header = m_gray.back();
                 m_gray.pop_back();
 
-                Value* values = header->values();
-                for (std::size_t i = 0; i < header->count; i++) {
-                    Value& value = values[i];
-                    mark_value(value);
+                switch (header->uniform_type) {
+                case MemHeader::UniformType::None: {
+                    Value* values = header->values();
+                    for (std::size_t i = 0; i < header->count; i++) {
+                        Value& value = values[i];
+                        mark_value(value);
+                    }
+                } break;
+                case MemHeader::UniformType::Primitive: {
+                    // ignore, block contains primitive type values
+                } break;
+                case MemHeader::UniformType::Str: {
+                    Str* strings = header->values_uniform<Str>();
+                    for (std::size_t i = 0; i < header->count; i++) {
+                        Str& string = strings[i];
+                        string->mark = true;
+                    }
+                } break;
+                case MemHeader::UniformType::Ref: {
+                    Ref* references = header->values_uniform<Ref>();
+                    for (std::size_t i = 0; i < header->count; i++) {
+                        MemHeader* header = references[i];
+                        header->mark = true;
+                        m_gray.push_back(header);
+                    }
+                } break;
                 }
             }
         }
@@ -334,7 +496,7 @@ namespace avm {
                 auto& header = m_tracked_blocks[read];
                 if (header->mark) {
                     header->mark = false;
-                    m_live_bytes += header->allocated_size_in_bytes();
+                    m_live_bytes += header->total_size;
                     m_tracked_blocks[write++] = header;
                 } else {
                     MemHeader::deallocate(header);
@@ -347,7 +509,7 @@ namespace avm {
                 auto* header = it->second;
                 if (header->mark) {
                     header->mark = false;
-                    m_live_bytes += header->allocated_size_in_bytes();
+                    m_live_bytes += header->total_size;
                     ++it;
                 } else {
                     auto next = std::next(it);

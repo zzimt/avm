@@ -28,6 +28,34 @@ namespace avm {
         LoadMemIdx,
         LoadMemIdxIm,
 
+        MakeMemUniformInt,
+        StoreMemUniformInt,
+        LoadMemUniformInt,
+
+        MakeMemUniformUint,
+        StoreMemUniformUint,
+        LoadMemUniformUint,
+
+        MakeMemUniformByte,
+        StoreMemUniformByte,
+        LoadMemUniformByte,
+
+        MakeMemUniformFloat,
+        StoreMemUniformFloat,
+        LoadMemUniformFloat,
+
+        MakeMemUniformBool,
+        StoreMemUniformBool,
+        LoadMemUniformBool,
+
+        MakeMemUniformStr,
+        StoreMemUniformStr,
+        LoadMemUniformStr,
+        
+        MakeMemUniformRef,
+        StoreMemUniformRef,
+        LoadMemUniformRef,
+
         Copy,
         Swap,
 

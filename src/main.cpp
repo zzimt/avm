@@ -84,6 +84,113 @@ int main() {
             Elem::inst({ Op::EqStr }),
             Elem::inst({ Op::PrintBool }),
             Elem::inst({ Op::Ret }),
+
+        Elem::label("test_uniforms"),
+            Elem::inst({ Op::Push, Value::uinteger(10) }),
+            Elem::inst({ Op::MakeMemUniformInt }),
+            Elem::inst({ Op::StoreLocal, Value::uinteger(0) }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(0) }), // [0]
+            Elem::inst({ Op::Push, Value::integer(123) }), // = 123
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(1) }), // [1]
+            Elem::inst({ Op::Push, Value::integer(124) }), // = 124
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(2) }), // [2]
+            Elem::inst({ Op::Push, Value::integer(125) }), // = 125
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(3) }), // [3]
+            Elem::inst({ Op::Push, Value::integer(126) }), // = 126
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(4) }), // [4]
+            Elem::inst({ Op::Push, Value::integer(127) }), // = 127
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(5) }), // [5]
+            Elem::inst({ Op::Push, Value::integer(128) }), // = 128
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(6) }), // [6]
+            Elem::inst({ Op::Push, Value::integer(129) }), // = 129
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(7) }), // [7]
+            Elem::inst({ Op::Push, Value::integer(130) }), // = 130
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(8) }), // [8]
+            Elem::inst({ Op::Push, Value::integer(131) }), // = 131
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }), // array
+            Elem::inst({ Op::Push, Value::uinteger(9) }), // [9]
+            Elem::inst({ Op::Push, Value::integer(132) }), // = 132
+            Elem::inst({ Op::StoreMemUniformInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(0) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(1) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(2) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(3) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(4) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(5) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(6) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(7) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(8) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::LoadLocal, Value::uinteger(0) }),
+            Elem::inst({ Op::Push, Value::uinteger(9) }),
+            Elem::inst({ Op::LoadMemUniformInt }),
+            Elem::inst({ Op::PrintInt }),
+
+            Elem::inst({ Op::Ret }),
     };
 
     Resolver resolver(elems);
@@ -135,6 +242,11 @@ int main() {
     {
         auto test_strings_addr = *resolver.get_label_addr("test_strings");
         avm.call(test_strings_addr);
+    }
+
+    {
+        auto test_uniforms_addr = *resolver.get_label_addr("test_uniforms");
+        avm.call(test_uniforms_addr);
     }
 
     return 0;

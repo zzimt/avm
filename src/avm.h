@@ -123,6 +123,132 @@ namespace avm {
                 m_stack.push(m_mem.get(header, idx));
             } break;
 
+            case Op::MakeMemUniformInt: {
+                Uint count = m_stack.pop().uinteger();
+                Ref header = m_mem.make_uniform<Int>(count);
+                m_stack.push(Value::reference(header));
+            } break;
+            case Op::StoreMemUniformInt: {
+                Int value = m_stack.pop().integer();
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                m_mem.get_uniform<Int>(header, index) = value;
+            } break;
+            case Op::LoadMemUniformInt: {
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                Int res = m_mem.get_uniform<Int>(header, index);
+                m_stack.push(Value::integer(res));
+            } break;
+
+            case Op::MakeMemUniformUint: {
+                Uint count = m_stack.pop().uinteger();
+                Ref header = m_mem.make_uniform<Uint>(count);
+                m_stack.push(Value::reference(header));
+            } break;
+            case Op::StoreMemUniformUint: {
+                Uint value = m_stack.pop().uinteger();
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                m_mem.get_uniform<Uint>(header, index) = value;
+            } break;
+            case Op::LoadMemUniformUint: {
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                Uint res = m_mem.get_uniform<Uint>(header, index);
+                m_stack.push(Value::uinteger(res));
+            } break;
+
+            case Op::MakeMemUniformByte: {
+                Uint count = m_stack.pop().uinteger();
+                Ref header = m_mem.make_uniform<Byte>(count);
+                m_stack.push(Value::reference(header));
+            } break;
+            case Op::StoreMemUniformByte: {
+                Byte value = m_stack.pop().byte();
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                m_mem.get_uniform<Byte>(header, index) = value;
+            } break;
+            case Op::LoadMemUniformByte: {
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                Byte res = m_mem.get_uniform<Byte>(header, index);
+                m_stack.push(Value::byte(res));
+            } break;
+
+            case Op::MakeMemUniformFloat: {
+                Uint count = m_stack.pop().uinteger();
+                Ref header = m_mem.make_uniform<Float>(count);
+                m_stack.push(Value::reference(header));
+            } break;
+            case Op::StoreMemUniformFloat: {
+                Float value = m_stack.pop().floating();
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                m_mem.get_uniform<Float>(header, index) = value;
+            } break;
+            case Op::LoadMemUniformFloat: {
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                Float res = m_mem.get_uniform<Float>(header, index);
+                m_stack.push(Value::floating(res));
+            } break;
+
+            case Op::MakeMemUniformBool: {
+                Uint count = m_stack.pop().uinteger();
+                Ref header = m_mem.make_uniform<Bool>(count);
+                m_stack.push(Value::reference(header));
+            } break;
+            case Op::StoreMemUniformBool: {
+                Bool value = m_stack.pop().boolean();
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                m_mem.get_uniform<Bool>(header, index) = value;
+            } break;
+            case Op::LoadMemUniformBool: {
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                Bool res = m_mem.get_uniform<Bool>(header, index);
+                m_stack.push(Value::boolean(res));
+            } break;
+
+            case Op::MakeMemUniformStr: {
+                Uint count = m_stack.pop().uinteger();
+                Ref header = m_mem.make_uniform<Str>(count);
+                m_stack.push(Value::reference(header));
+            } break;
+            case Op::StoreMemUniformStr: {
+                Str value = m_stack.pop().string();
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                m_mem.get_uniform<Str>(header, index) = value;
+            } break;
+            case Op::LoadMemUniformStr: {
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                Str res = m_mem.get_uniform<Str>(header, index);
+                m_stack.push(Value::string(res));
+            } break;
+
+            case Op::MakeMemUniformRef: {
+                Uint count = m_stack.pop().uinteger();
+                Ref header = m_mem.make_uniform<Ref>(count);
+                m_stack.push(Value::reference(header));
+            } break;
+            case Op::StoreMemUniformRef: {
+                Ref value = m_stack.pop().reference();
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                m_mem.get_uniform<Ref>(header, index) = value;
+            } break;
+            case Op::LoadMemUniformRef: {
+                Uint index = m_stack.pop().uinteger();
+                Ref header = m_stack.pop().reference();
+                Ref res = m_mem.get_uniform<Ref>(header, index);
+                m_stack.push(Value::reference(res));
+            } break;
+
             case Op::Copy: {
                 Uint addr = inst.a.uinteger();
                 m_stack.push(m_stack[addr]);
