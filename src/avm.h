@@ -683,8 +683,6 @@ namespace avm {
                 m_stack.push(Value::string(res));
             } break;
             }
-            // 0 1 2 3 4
-            //     2   4
         }
 
         inline void stack_push(const Value& value) {
