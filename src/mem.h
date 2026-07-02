@@ -422,7 +422,18 @@ namespace avm {
         void run_mark() {
             m_gray.clear();
 
-            auto mark_value = [this](Value& value) {
+            auto mark_str_header = [](StrHeader* header) {
+                header->mark = true;
+            };
+
+            auto mark_mem_header = [this](MemHeader* header) {
+                if (!header->mark) {
+                    header->mark = true;
+                    m_gray.push_back(header);
+                }
+            };
+
+            auto mark_value = [&](Value& value) {
                 switch (value.type()) {
                 case Type::Int:
                 case Type::Uint:
@@ -432,16 +443,11 @@ namespace avm {
                     break;
                 case Type::Str: {
                     StrHeader* header = value.string();
-                    if (header->mark) {
-                        header->mark = true;
-                    }
+                    mark_str_header(header);
                 } break;
                 case Type::Ref: {
                     MemHeader* header = value.reference();
-                    if (!header->mark) {
-                        header->mark = true;
-                        m_gray.push_back(header);
-                    }
+                    mark_mem_header(header);
                 } break;
                 }
             };
@@ -473,15 +479,14 @@ namespace avm {
                     Str* strings = header->values_uniform<Str>();
                     for (std::size_t i = 0; i < header->count; i++) {
                         Str& string = strings[i];
-                        string->mark = true;
+                        mark_str_header(string);
                     }
                 } break;
                 case MemHeader::UniformType::Ref: {
                     Ref* references = header->values_uniform<Ref>();
                     for (std::size_t i = 0; i < header->count; i++) {
                         MemHeader* header = references[i];
-                        header->mark = true;
-                        m_gray.push_back(header);
+                        mark_mem_header(header);
                     }
                 } break;
                 }
