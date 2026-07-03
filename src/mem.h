@@ -7,8 +7,8 @@
 #include <cstring>
 
 #include <rapidhash/rapidhash.h>
-#include <absl/hash/hash.h>
-#include <absl/container/flat_hash_map.h>
+
+#include <parallel_hashmap/phmap.h>
 
 #include "value.h"
 #include "stack.h"
@@ -109,9 +109,9 @@ namespace avm {
             return !((*this) == rhs);
         }
 
-        template <typename H>
-        friend H AbslHashValue(H h, const StrKey& k) {
-            return H::combine(std::move(h), k.hash);
+        /// Hash function for `phmap::flat_hash_map`
+        friend std::size_t hash_value(const StrKey& k) {
+            return k.hash;
         }
     };
 
@@ -535,15 +535,13 @@ namespace avm {
                     m_live_bytes += header->total_size;
                     ++it;
                 } else {
-                    auto next = std::next(it);
-                    m_strings.erase(it);
-                    it = next;
+                    it = m_strings.erase(it);
                 }
             }
         }
 
         std::vector<MemHeader*> m_tracked_blocks;
-        absl::flat_hash_map<StrKey, StrHeader*> m_strings;
+        phmap::flat_hash_map<StrKey, StrHeader*> m_strings;
         std::vector<MemHeader*> m_gray;
         std::size_t m_total_allocated;
         std::size_t m_live_bytes;
