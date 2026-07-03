@@ -299,22 +299,22 @@ namespace avm {
             case Op::AddInt: {
                 Int b = m_stack.pop().integer();
                 Int a = m_stack.pop().integer();
-                m_stack.push(Value::integer(a + b));
+                m_stack.push(Value::integer(wrap_add<Int>(a, b)));
             } break;
             case Op::SubInt: {
                 Int b = m_stack.pop().integer();
                 Int a = m_stack.pop().integer();
-                m_stack.push(Value::integer(a - b));
+                m_stack.push(Value::integer(wrap_sub<Int>(a, b)));
             } break;
             case Op::MulInt: {
                 Int b = m_stack.pop().integer();
                 Int a = m_stack.pop().integer();
-                m_stack.push(Value::integer(a * b));
+                m_stack.push(Value::integer(wrap_mul<Int>(a, b)));
             } break;
             case Op::DivInt: {
                 Int b = m_stack.pop().integer();
                 Int a = m_stack.pop().integer();
-                m_stack.push(Value::integer(a / b));
+                m_stack.push(Value::integer(wrap_div<Int>(a, b)));
             } break;
             case Op::UnMinInt: {
                 Int a = m_stack.pop().integer();
@@ -377,12 +377,17 @@ namespace avm {
             case Op::LShiftInt: {
                 Uint b = m_stack.pop().uinteger();
                 Int a = m_stack.pop().integer();
-                m_stack.push(Value::integer(a << b));
+                m_stack.push(Value::integer(wrap_lshift(a, b)));
             } break;
             case Op::RShiftInt: {
                 Uint b = m_stack.pop().uinteger();
                 Int a = m_stack.pop().integer();
-                m_stack.push(Value::integer(a >> b));
+                m_stack.push(Value::integer(wrap_rshift(a, b)));
+            } break;
+            case Op::RShiftArithmInt: {
+                Uint b = m_stack.pop().uinteger();
+                Int a = m_stack.pop().integer();
+                m_stack.push(Value::integer(wrap_rshift_arithm(a, b)));
             } break;
 
             case Op::AddUint: {
@@ -462,12 +467,12 @@ namespace avm {
             case Op::LShiftUint: {
                 Uint b = m_stack.pop().uinteger();
                 Uint a = m_stack.pop().uinteger();
-                m_stack.push(Value::uinteger(a << b));
+                m_stack.push(Value::uinteger(wrap_lshift<Uint>(a, b)));
             } break;
             case Op::RShiftUint: {
                 Uint b = m_stack.pop().uinteger();
                 Uint a = m_stack.pop().uinteger();
-                m_stack.push(Value::uinteger(a >> b));
+                m_stack.push(Value::uinteger(wrap_rshift<Uint>(a, b)));
             } break;
 
             case Op::AddByte: {
@@ -547,12 +552,12 @@ namespace avm {
             case Op::LShiftByte: {
                 Uint b = m_stack.pop().uinteger();
                 Byte a = m_stack.pop().byte();
-                m_stack.push(Value::byte(a << b));
+                m_stack.push(Value::byte(wrap_lshift<Byte>(a, b)));
             } break;
             case Op::RShiftByte: {
                 Uint b = m_stack.pop().uinteger();
                 Byte a = m_stack.pop().byte();
-                m_stack.push(Value::byte(a >> b));
+                m_stack.push(Value::byte(wrap_rshift<Byte>(a, b)));
             } break;
 
             case Op::AddFloat: {
@@ -943,6 +948,74 @@ namespace avm {
         }
 
     private:
+        template<typename T>
+        static inline T wrap_add(T a, T b) {
+            using U = std::make_unsigned_t<T>;
+            U ua = static_cast<U>(a);
+            U ub = static_cast<U>(b);
+            U ures = ua + ub;
+            return static_cast<T>(ures);
+        }
+
+        template<typename T>
+        static inline T wrap_sub(T a, T b) {
+            using U = std::make_unsigned_t<T>;
+            U ua = static_cast<U>(a);
+            U ub = static_cast<U>(b);
+            U ures = ua - ub;
+            return static_cast<T>(ures);
+        }
+
+        template<typename T>
+        static inline T wrap_mul(T a, T b) {
+            using U = std::make_unsigned_t<T>;
+            U ua = static_cast<U>(a);
+            U ub = static_cast<U>(b);
+            U ures = ua * ub;
+            return static_cast<T>(ures);
+        }
+
+        template<typename T>
+        static inline T wrap_div(T a, T b) {
+            using U = std::make_unsigned_t<T>;
+            U ua = static_cast<U>(a);
+            U ub = static_cast<U>(b);
+            U ures = ua / ub;
+            return static_cast<T>(ures);
+        }
+
+        template<typename T>
+        static inline T wrap_lshift(T a, Uint b)
+        {
+            using U = std::make_unsigned_t<T>;
+            constexpr Uint N = sizeof(T) * 8;
+            b %= N;
+            U ua = static_cast<U>(a);
+            U ur = static_cast<U>(ua << b);
+            return static_cast<T>(ur);
+        }
+
+        template<typename T>
+        static inline T wrap_rshift(T a, Uint b)
+        {
+            using U = std::make_unsigned_t<T>;
+            constexpr Uint N = sizeof(T) * 8;
+            b %= N;
+            return static_cast<T>(static_cast<U>(a) >> b);
+        }
+
+        template<typename T>
+        static inline T wrap_rshift_arithm(T a, Uint b)
+        {
+            constexpr Uint N = sizeof(T) * 8;
+            b %= N;
+            if (a > 0) {
+                return static_cast<T>((a >> b) | ~(~T(0) >> b));
+            } else {
+                return static_cast<T>(a >> b);
+            }
+        }
+
         class ReturnFrame {
         public:
             static inline ReturnFrame addr(std::uint64_t addr) {

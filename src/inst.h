@@ -85,6 +85,7 @@ namespace avm {
         BinNotInt,
         LShiftInt,
         RShiftInt,
+        RShiftArithmInt,
 
         AddUint,
         SubUint,
