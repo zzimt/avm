@@ -528,13 +528,14 @@ namespace avm {
 
             m_tracked_blocks.resize(write);
 
-            for (auto it = m_strings.begin(); it != m_strings.end(); ) {
+            for (auto it = m_strings.begin(); it != m_strings.end();) {
                 auto* header = it->second;
                 if (header->mark) {
                     header->mark = false;
                     m_live_bytes += header->total_size;
                     ++it;
                 } else {
+                    StrHeader::deallocate(header);
                     it = m_strings.erase(it);
                 }
             }
