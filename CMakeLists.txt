@@ -14,6 +14,7 @@ set_target_properties(avm PROPERTIES
 target_compile_options(avm PRIVATE -Wall -Wextra -Wpedantic)
 
 target_compile_options(avm PRIVATE -fno-exceptions)
+target_compile_options(avm PRIVATE -fno-rtti)
 
 target_include_directories(avm PRIVATE "vendor/rapidhash/include")
 target_include_directories(avm PRIVATE "vendor/parallel-hashmap/include")
