@@ -212,6 +212,19 @@ int main() {
             Elem::inst({ Op::PrintInt }),
 
             Elem::inst({ Op::Ret }),
+
+        Elem::label("test_panic"),
+            Elem::call_im("div_by_zero_panic"),
+            // should be unreachable
+            Elem::inst({ Op::Ret }),
+
+        Elem::label("div_by_zero_panic"),
+            Elem::inst({ Op::Push, Value::integer(10) }),
+            Elem::inst({ Op::Push, Value::integer(0) }),
+            Elem::inst({ Op::DivInt }),
+            // should be unreachable
+            Elem::inst({ Op::PrintInt }),
+            Elem::inst({ Op::Ret }),
     };
 
     Resolver resolver(elems);
@@ -254,7 +267,7 @@ int main() {
     std::cout << "----------------------------------------" << std::endl;
     std::cout << std::endl;
     {
-        Int n = 30;
+        Int n = 12;
         avm.stack_push(Value::integer(n));
         auto fib_addr = *resolver.get_label_addr("fib");
         avm.call(fib_addr);
@@ -294,6 +307,29 @@ int main() {
     {
         auto test_uniforms_addr = *resolver.get_label_addr("test_uniforms");
         avm.call(test_uniforms_addr);
+    }
+    std::cout << std::endl;
+
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << "-- test_panic --------------------------" << std::endl;
+    std::cout << "----------------------------------------" << std::endl;
+    std::cout << std::endl;
+    {
+        auto test_panic_addr = *resolver.get_label_addr("test_panic");
+        auto res = avm.call(test_panic_addr);
+        if (res.is_ok()) {
+            std::cout << "error: didn't panic" << std::endl;
+            return 1;
+        }
+        if (res.panic().why() != AvmPanicWhy::DivisionByZero) {
+            std::cout << "error: incorrect panic reason" << std::endl;
+            return 1;
+        }
+        auto stack_trace = res.panic().stack_trace();
+        std::cout << "panic:" << std::endl;
+        for (auto addr : stack_trace) {
+            std::cout << "    at " << addr << std::endl;
+        }
     }
 
     return 0;

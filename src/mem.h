@@ -349,6 +349,8 @@ namespace avm {
         }
 
         inline MemHeader* make(std::uint64_t count) {
+            if (count == 0) return nullptr;
+
             m_alloc_since_gc += MemHeader::allocated_size_in_bytes(count);
 
             run_gc_if_needed();
@@ -358,6 +360,8 @@ namespace avm {
 
         template<typename T>
         inline MemHeader* make_uniform(std::uint64_t count) {
+            if (count == 0) return nullptr;
+            
             m_alloc_since_gc += 
                 MemHeader::allocated_size_in_bytes_uniform<T>(count);
 
@@ -366,13 +370,19 @@ namespace avm {
             return alloc_block_uniform<T>(count);
         }
 
-        inline Value& get(MemHeader* header, std::uint64_t idx) {
-            return header->values()[idx];
+        inline Value* get(MemHeader* header, std::uint64_t idx) {
+            if (idx >= header->count) {
+                return nullptr;
+            }
+            return &header->values()[idx];
         }
 
         template<typename T>
-        inline T& get_uniform(MemHeader* header, std::uint64_t idx) {
-            return header->values_uniform<T>()[idx];
+        inline T* get_uniform(MemHeader* header, std::uint64_t idx) {
+            if (idx >= header->count) {
+                return nullptr;
+            }
+            return &header->values_uniform<T>()[idx];
         }
 
         inline StrHeader* str_intern(const StrKey& key) {

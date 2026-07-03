@@ -12,7 +12,7 @@
 
 namespace avm {
 
-        class Elem {
+    class Elem {
     public:
         enum class Kind {
             Label,

@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstring>
 #include <type_traits>
+#include <optional>
 
 #include "inst.h"
 #include "stack.h"
@@ -17,6 +18,58 @@
 #include "externs.h"
 
 namespace avm {
+
+    enum class AvmPanicWhy {
+        DivisionByZero,
+        OutOfBoundsMemAccess,
+        AttemptToAllocateZeroElements,
+    };
+
+    class AvmPanic {
+    public:
+        inline AvmPanic(
+            AvmPanicWhy why, 
+            const std::vector<std::size_t>& stack_trace
+        ) : m_why(why),
+            m_stack_trace(stack_trace) { }
+
+        inline AvmPanicWhy why() const {
+            return m_why;
+        }
+
+        inline const std::vector<std::size_t>& stack_trace() const {
+            return m_stack_trace;
+        }
+
+    private:
+        AvmPanicWhy m_why;
+        std::vector<std::size_t> m_stack_trace;
+    };
+
+    class AvmResult {
+    public:
+        static inline AvmResult ok() {
+            return AvmResult(std::nullopt);
+        }
+
+        static inline AvmResult panic(const AvmPanic& panic) {
+            return AvmResult(std::make_optional(panic));
+        }
+
+        inline bool is_ok() const {
+            return !m_panic.has_value();
+        }
+
+        inline AvmPanic panic() const {
+            return *m_panic;
+        }
+
+    private:
+        AvmResult(std::optional<AvmPanic> panic) :
+            m_panic(panic) { }
+
+        std::optional<AvmPanic> m_panic;
+    };
 
     class Avm {
     public:
@@ -68,185 +121,336 @@ namespace avm {
             case Op::MakeMemCount: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::MakeMemCountIm: {
                 Uint count = inst.a.uinteger();
                 Ref header = m_mem.make(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMem: {
                 Value value = m_stack.pop();
                 Ref header = m_stack.pop().reference();
-                m_mem.get(header, 0) = value;
+                auto* storage = m_mem.get(header, 0);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::StoreMemIm: {
                 Value value = inst.a;
                 Ref header = m_stack.pop().reference();
-                m_mem.get(header, 0) = value;
+                auto* storage = m_mem.get(header, 0);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::StoreMemIdx: {
                 Value value = m_stack.pop();
                 Uint idx = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get(header, idx) = value;
+                auto* storage = m_mem.get(header, idx);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::StoreMemImIdx: {
                 Value value = inst.a;
                 Uint idx = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get(header, idx) = value;
+                auto* storage = m_mem.get(header, idx);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::StoreMemIdxIm: {
                 Value value = m_stack.pop();
                 Uint idx = inst.a.uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get(header, idx) = value;
+                auto* storage = m_mem.get(header, idx);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::StoreMemImIdxIm: {
                 Value value = inst.b;
                 Uint idx = inst.a.uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get(header, idx) = value;
+                auto* storage = m_mem.get(header, idx);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMem: {
                 Ref header = m_stack.pop().reference();
-                m_stack.push(m_mem.get(header, 0));
+                auto* storage = m_mem.get(header, 0);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                m_stack.push(*storage);
             } break;
             case Op::LoadMemIdx: {
                 Uint idx = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_stack.push(m_mem.get(header, idx));
+                auto* storage = m_mem.get(header, idx);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                m_stack.push(*storage);
             } break;
             case Op::LoadMemIdxIm: {
                 Uint idx = inst.a.uinteger();
                 Ref header = m_stack.pop().reference();
-                m_stack.push(m_mem.get(header, idx));
+                auto* storage = m_mem.get(header, idx);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                m_stack.push(*storage);
             } break;
 
             case Op::MakeMemUniformInt: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make_uniform<Int>(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMemUniformInt: {
                 Int value = m_stack.pop().integer();
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get_uniform<Int>(header, index) = value;
+                auto* storage = m_mem.get_uniform<Int>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMemUniformInt: {
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                Int res = m_mem.get_uniform<Int>(header, index);
+                auto* storage = m_mem.get_uniform<Int>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                Int res = *storage;
                 m_stack.push(Value::integer(res));
             } break;
 
             case Op::MakeMemUniformUint: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make_uniform<Uint>(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMemUniformUint: {
                 Uint value = m_stack.pop().uinteger();
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get_uniform<Uint>(header, index) = value;
+                auto* storage = m_mem.get_uniform<Uint>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMemUniformUint: {
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                Uint res = m_mem.get_uniform<Uint>(header, index);
+                auto* storage = m_mem.get_uniform<Uint>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                Uint res = *storage;
                 m_stack.push(Value::uinteger(res));
             } break;
 
             case Op::MakeMemUniformByte: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make_uniform<Byte>(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMemUniformByte: {
                 Byte value = m_stack.pop().byte();
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get_uniform<Byte>(header, index) = value;
+                auto* storage = m_mem.get_uniform<Byte>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMemUniformByte: {
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                Byte res = m_mem.get_uniform<Byte>(header, index);
+                auto* storage = m_mem.get_uniform<Byte>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                Byte res = *storage;
                 m_stack.push(Value::byte(res));
             } break;
 
             case Op::MakeMemUniformFloat: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make_uniform<Float>(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMemUniformFloat: {
                 Float value = m_stack.pop().floating();
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get_uniform<Float>(header, index) = value;
+                auto* storage = m_mem.get_uniform<Float>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMemUniformFloat: {
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                Float res = m_mem.get_uniform<Float>(header, index);
+                auto* storage = m_mem.get_uniform<Float>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                Float res = *storage;
                 m_stack.push(Value::floating(res));
             } break;
 
             case Op::MakeMemUniformBool: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make_uniform<Bool>(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMemUniformBool: {
                 Bool value = m_stack.pop().boolean();
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get_uniform<Bool>(header, index) = value;
+                auto* storage = m_mem.get_uniform<Bool>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMemUniformBool: {
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                Bool res = m_mem.get_uniform<Bool>(header, index);
+                auto* storage = m_mem.get_uniform<Bool>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                Bool res = *storage;
                 m_stack.push(Value::boolean(res));
             } break;
 
             case Op::MakeMemUniformStr: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make_uniform<Str>(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMemUniformStr: {
                 Str value = m_stack.pop().string();
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get_uniform<Str>(header, index) = value;
+                auto* storage = m_mem.get_uniform<Str>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMemUniformStr: {
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                Str res = m_mem.get_uniform<Str>(header, index);
+                auto* storage = m_mem.get_uniform<Str>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                Str res = *storage;
                 m_stack.push(Value::string(res));
             } break;
 
             case Op::MakeMemUniformRef: {
                 Uint count = m_stack.pop().uinteger();
                 Ref header = m_mem.make_uniform<Ref>(count);
+                if (!header) {
+                    panic(AvmPanicWhy::AttemptToAllocateZeroElements);
+                    return;
+                }
                 m_stack.push(Value::reference(header));
             } break;
             case Op::StoreMemUniformRef: {
                 Ref value = m_stack.pop().reference();
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                m_mem.get_uniform<Ref>(header, index) = value;
+                auto* storage = m_mem.get_uniform<Ref>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                *storage = value;
             } break;
             case Op::LoadMemUniformRef: {
                 Uint index = m_stack.pop().uinteger();
                 Ref header = m_stack.pop().reference();
-                Ref res = m_mem.get_uniform<Ref>(header, index);
+                auto* storage = m_mem.get_uniform<Ref>(header, index);
+                if (!storage) {
+                    panic(AvmPanicWhy::OutOfBoundsMemAccess);
+                    return;
+                }
+                Ref res = *storage;
                 m_stack.push(Value::reference(res));
             } break;
 
@@ -315,6 +519,10 @@ namespace avm {
             case Op::DivInt: {
                 Int b = m_stack.pop().integer();
                 Int a = m_stack.pop().integer();
+                if (b == 0) {
+                    panic(AvmPanicWhy::DivisionByZero);
+                    return;
+                }
                 m_stack.push(Value::integer(wrap_div<Int>(a, b)));
             } break;
             case Op::UnMinInt: {
@@ -734,21 +942,21 @@ namespace avm {
             } break;
             case Op::Ret: {
                 ReturnFrame frame = m_ret_stack.pop();
+                m_local_stack.pop();
                 if (frame.is_exit()) {
                     m_exit_requested = true;
                     return;
                 }
                 m_program_cnt = frame.addr();
-                m_local_stack.pop();
                 return;
             } break;
             case Op::Goto: {
-                Uint addr = m_stack.pop().uinteger();
+                std::size_t addr = m_stack.pop().uinteger();
                 m_program_cnt = addr;
                 return;
             } break;
             case Op::GotoIm: {
-                Uint addr = inst.a.uinteger();
+                std::size_t addr = inst.a.uinteger();
                 m_program_cnt = addr;
                 return;
             } break;
@@ -937,15 +1145,20 @@ namespace avm {
             return m_stack.pop();
         }
 
-        void call(std::uint64_t addr) {
+        AvmResult call(std::uint64_t addr) {
             m_exit_requested = false;
             m_program_cnt = addr;
-            m_ret_stack.push(ReturnFrame::exit());
+            m_ret_stack.push(ReturnFrame::exit(m_stack.size()));
             m_local_stack.push();
-            while (true) {
-                if (m_exit_requested) return;
+            while (!m_exit_requested) {
                 execute_inst(m_program[m_program_cnt]);
             }
+            if (m_panic) {
+                auto result = AvmResult::panic(*m_panic);
+                m_panic.reset();
+                return result;
+            }
+            return AvmResult::ok();
         }
 
     private:
@@ -1017,18 +1230,52 @@ namespace avm {
             }
         }
 
+        void panic(AvmPanicWhy why) {
+            m_exit_requested = true;
+            auto stack_trace = panic_unwind();
+            m_panic = std::make_optional(AvmPanic(why, stack_trace));
+        }
+
+        std::vector<std::size_t> panic_unwind() {
+            std::vector<std::size_t> stack_trace;
+            stack_trace.reserve(m_ret_stack.size() + 1);
+            stack_trace.push_back(m_program_cnt);
+            
+            while (true) {
+                auto frame = m_ret_stack.pop();
+                m_local_stack.pop();
+                if (frame.is_exit()) {
+                    std::size_t height = frame.stack_height();
+                    while (m_stack.size() != height) {
+                        m_stack.pop();
+                    }
+                    break;
+                } else {
+                    // subtract one because return frame contains address of 
+                    // call instruction + 1
+                    stack_trace.push_back(frame.addr() - 1);
+                }
+            }
+
+            return stack_trace;
+        }
+
         class ReturnFrame {
         public:
-            static inline ReturnFrame addr(std::uint64_t addr) {
-                return ReturnFrame(addr, false);
+            static inline ReturnFrame addr(std::size_t addr) {
+                return ReturnFrame(addr, 0, false);
             }
 
-            static inline ReturnFrame exit() {
-                return ReturnFrame(0, true);
+            static inline ReturnFrame exit(std::size_t stack_height) {
+                return ReturnFrame(0, stack_height, true);
             }
 
-            inline std::uint64_t addr() {
+            inline std::size_t addr() {
                 return m_addr;
+            }
+
+            inline std::size_t stack_height() {
+                return m_stack_height;
             }
 
             inline bool is_exit() {
@@ -1036,11 +1283,16 @@ namespace avm {
             }
 
         private:
-            std::uint64_t m_addr;
+            std::size_t m_addr;
+            std::size_t m_stack_height;
             bool m_is_exit;
 
-            inline ReturnFrame(std::uint64_t addr, bool is_exit) :
-                m_addr(addr),
+            inline ReturnFrame(
+                std::size_t addr, 
+                std::size_t stack_height,
+                bool is_exit
+            ) : m_addr(addr),
+                m_stack_height(stack_height),
                 m_is_exit(is_exit) { }
         };
 
@@ -1053,6 +1305,7 @@ namespace avm {
         bool m_exit_requested;
         Externs& m_externs;
         StringStore& m_string_store;
+        std::optional<AvmPanic> m_panic;
     };
     
 }
