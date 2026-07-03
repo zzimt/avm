@@ -23,6 +23,7 @@ namespace avm {
         DivisionByZero,
         OutOfBoundsMemAccess,
         AttemptToAllocateZeroElements,
+        ExplicitPanic,
     };
 
     class AvmPanic {
@@ -967,6 +968,10 @@ namespace avm {
                 call_intrin(intrin);
             } break;
 
+            case Op::Panic: {
+                panic(AvmPanicWhy::ExplicitPanic);
+                return;
+            } break;
             case Op::Exit: {
                 m_exit_requested = true;
                 return;

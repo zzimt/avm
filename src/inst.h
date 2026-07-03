@@ -168,6 +168,7 @@ namespace avm {
 
         CallIntrin,
 
+        Panic,
         Exit,
     };
 
