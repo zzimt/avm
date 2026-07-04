@@ -158,6 +158,7 @@ namespace avm {
         CByteFloat,
 
         If,
+        JumpIf,
         Call,
         CallIm,
         CallExtern,

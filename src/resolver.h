@@ -17,6 +17,7 @@ namespace avm {
         enum class Kind {
             Label,
             If,
+            JumpIf,
             CallIm,
             GotoIm,
             PushLabel,
@@ -37,9 +38,15 @@ namespace avm {
             inline If(
                 std::string_view true_label, 
                 std::string_view false_label
-            ) :
-                true_label(true_label),
+            ) : true_label(true_label),
                 false_label(false_label) { }
+        };
+
+        struct JumpIf {
+            std::string_view label;
+
+            inline JumpIf(std::string_view label) :
+                label(label) { }
         };
 
         struct CallIm {
@@ -66,6 +73,7 @@ namespace avm {
         union Data {
             Label label;
             If if_;
+            JumpIf jump_if;
             CallIm call_im;
             GotoIm goto_im;
             PushLabel push_label;
@@ -76,6 +84,9 @@ namespace avm {
 
             Data(const If& if_) :
                 if_(if_) { }
+
+            Data(const JumpIf& jump_if) :
+                jump_if(jump_if) { }
 
             Data(const CallIm& call_im) :
                 call_im(call_im) { }
@@ -115,6 +126,17 @@ namespace avm {
 
         inline If if_() const {
             return m_data.if_;
+        }
+
+        static inline Elem jump_if(std::string_view label) {
+            return Elem(
+                Kind::JumpIf,
+                Data(JumpIf(label))
+            );
+        }
+
+        inline JumpIf jump_if() const {
+            return m_data.jump_if;
         }
 
         static inline Elem call_im(std::string_view label) {
@@ -201,6 +223,7 @@ namespace avm {
                     m_labels_to_addrs.insert({elem.label().value, inst_addr});
                     break;
                 case Elem::Kind::If:
+                case Elem::Kind::JumpIf:
                 case Elem::Kind::CallIm:
                 case Elem::Kind::GotoIm:
                 case Elem::Kind::PushLabel:
@@ -228,6 +251,16 @@ namespace avm {
                             Op::If, 
                             Value::uinteger(true_addr), 
                             Value::uinteger(false_addr)
+                        )
+                    );
+                } break;
+                case Elem::Kind::JumpIf: {
+                    std::uint64_t addr =
+                        m_labels_to_addrs[elem.jump_if().label];
+                    res.push_back(
+                        Inst(
+                            Op::JumpIf,
+                            Value::uinteger(addr)
                         )
                     );
                 } break;

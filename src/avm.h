@@ -917,6 +917,14 @@ namespace avm {
                 m_program_cnt = cond ? true_addr : false_addr;
                 return;
             } break;
+            case Op::JumpIf: {
+                Uint addr = inst.a.uinteger();
+                Bool cond = m_stack.pop().boolean();
+                if (cond) {
+                    m_program_cnt = addr;
+                    return;
+                }
+            } break;
             case Op::Call: {
                 Uint addr = m_stack.pop().uinteger();
                 m_ret_stack.push(ReturnFrame::addr(m_program_cnt + 1));
